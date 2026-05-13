@@ -1,0 +1,117 @@
+# ===========================================
+# .NET/Visual Studio .gitignore
+# ===========================================
+
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio cache
+.vs/
+.idea/
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# NuGet Packages
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+
+# Visual Studio code coverage
+*.coverage
+*.coveragexml
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# Benchmark results
+BenchmarkDotNet.Artifacts/
+
+# SQL Server files
+*.mdf
+*.ldf
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Logs
+*.log
+logs/
+
+# Docker
+.dockerignore
+
+# Test Results
+TestResults/
+*.trx
+
+# IDE
+.idea/
+.vs/
+.vscode/
+*.swp
+*.swo
+
+# Python virtual environment
+.venv/
+
+# Graphify generated analysis cache
+graphify-out/
+
+# Generated output files
+output.json
+
+# Secrets
+*.pfx
+*.key
+secrets/
+credentials/
+*.secret
+
+# Markdown files (except README and CONTRIBUTING)
+*.md
+!README.md
+!CONTRIBUTING.md
+
+# Scripts, migrations, test fixtures
+test/
+migrations/
+.scripts/
+test-import.csv
+
+# Documentation (local docs folder)
+docs/
+.sisyphus/
+tasks/
+
+# Database seeding (regenerate with EF Core migrations)
+**/Seed/
+**/Migrations/

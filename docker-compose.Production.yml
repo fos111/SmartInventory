@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=
+      - Jwt__Issuer=
+      - Jwt__Audience=
+    ports:
+      - "8080:8080"
