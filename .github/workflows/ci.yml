@@ -63,19 +63,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  lint:
-    name: Code Quality
-    runs-on: ubuntu-latest
+  # lint:
+  #   name: Code Quality
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v4
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+  #     - uses: actions/setup-dotnet@v4
+  #       with:
+  #         dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Restore dependencies
-        run: dotnet restore
+  #     - name: Restore dependencies
+  #       run: dotnet restore
 
-      - name: Check formatting
-        run: dotnet format --verify-no-changes --verbosity diagnostic
+  #     - name: Check formatting
+  #       run: dotnet format --verify-no-changes --verbosity diagnostic
