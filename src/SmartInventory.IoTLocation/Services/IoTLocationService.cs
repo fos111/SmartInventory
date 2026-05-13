@@ -2,8 +2,11 @@ using System;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SmartInventory.Domain.Entities;
+using SmartInventory.Domain.Location.Entities;
+using SmartInventory.Infrastructure.Data;
 using SmartInventory.IoTLocation.Contracts;
 using SmartInventory.IoTLocation.Interfaces;
 

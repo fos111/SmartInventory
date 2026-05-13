@@ -31,6 +31,7 @@ public class ApplicationDbContext : DbContext
     // Asset tables
     public DbSet<AssetEntity> Assets => Set<AssetEntity>();
     public DbSet<CategoryGroupEntity> CategoryGroups => Set<CategoryGroupEntity>();
+    public DbSet<AssetLocationHistory> AssetLocationHistories => Set<AssetLocationHistory>();
     public DbSet<AssetHistoryEntity> AssetHistories => Set<AssetHistoryEntity>();
     public DbSet<ActivityLogEntity> ActivityLogs => Set<ActivityLogEntity>();
 

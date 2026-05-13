@@ -16,6 +16,7 @@ public class Asset
     public string CurrentRoomCode { get; set; } = string.Empty;
     public string? DetectedRoomCode { get; set; }
     public DateTime? LastSeen { get; set; }
+    public DateTime? LastDetectedUpdate { get; set; }
     public string? RfidTagId { get; set; }
     public DateTime? MaintenanceDueDate { get; set; }
     public DateTime? LastMaintenanceDate { get; set; }
