@@ -101,6 +101,8 @@ public class LocationServiceTests : ApplicationTestBase
             .ReturnsAsync(new Floor { Id = floorId, Level = 1, BuildingId = Guid.NewGuid() });
         _repositoryMock.Setup(r => r.AddRoomAsync(It.IsAny<Room>()))
             .ReturnsAsync((Room r) => r);
+        _repositoryMock.Setup(r => r.GetRoomByIdAsync(It.IsAny<Guid>()))
+            .ReturnsAsync((Guid id) => new Room { Id = id, Code = "TEST1", Name = "Test Room", FloorId = floorId });
 
         var service = CreateService();
         var result = await service.CreateRoomAsync(dto, Guid.NewGuid());
@@ -376,6 +378,8 @@ public class LocationCreationTrackingTests : ApplicationTestBase
             .ReturnsAsync(new Floor { Id = floorId, Level = 1 });
         _repositoryMock.Setup(r => r.AddRoomAsync(It.IsAny<Room>()))
             .ReturnsAsync((Room r) => r);
+        _repositoryMock.Setup(r => r.GetRoomByIdAsync(It.IsAny<Guid>()))
+            .ReturnsAsync((Guid id) => new Room { Id = id, Code = "RM-TRACK", Name = "Tracking Room", FloorId = floorId });
 
         var service = CreateService();
         var result = await service.CreateRoomAsync(dto, userId);
