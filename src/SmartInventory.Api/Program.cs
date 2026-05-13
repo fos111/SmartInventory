@@ -37,10 +37,11 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection");
+var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? Environment.GetEnvironmentVariable("AZURE_POSTGRES_CONNECTION_STRING");
 if (string.IsNullOrWhiteSpace(defaultConnection))
 {
-    throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required. Configure it in appsettings or environment variables.");
+    throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required. Configure it as an Azure App Setting (ConnectionStrings__DefaultConnection) or AZURE_POSTGRES_CONNECTION_STRING env var.");
 }
 
 builder.Services.AddControllers()
