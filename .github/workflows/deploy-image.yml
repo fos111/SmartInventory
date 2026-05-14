@@ -1,0 +1,31 @@
+name: Deploy Specific Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Tag to deploy (SHA or latest)'
+        required: true
+        default: 'latest'
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: beta
+
+    steps:
+      - name: Set image name to lowercase
+        run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
+      - name: Deploy to Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.WEB_APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          images: "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.image_tag }}"
+          container-registry-url: "https://${{ env.REGISTRY }}"
+          container-registry-user: ${{ secrets.GHCR_USERNAME }}
+          container-registry-password: ${{ secrets.GHCR_PULL_TOKEN }}
