@@ -1,8 +1,8 @@
-name: Deploy to Azure App Service
+name: CD - Deploy to Azure App Service
 
 on:
   workflow_run:
-    workflows: ["Docker - Build & Push to GHCR"]
+    workflows: ["CD - Docker Build & Push to GHCR"]
     types:
       - completed
     branches: [ "main" ]
