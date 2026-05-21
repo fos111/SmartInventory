@@ -15,6 +15,7 @@ public class User : Entity
     public Guid? ApprovedByUserId { get; set; }
     public DateTime? ApprovedAt { get; set; }
     public string? RejectionReason { get; set; }
+    public string? AvatarUrl { get; set; }
 
     public new Guid Id { get; set; }
 

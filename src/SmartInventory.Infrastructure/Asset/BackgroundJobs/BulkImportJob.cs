@@ -12,8 +12,10 @@ using SmartInventory.Application.Asset.BackgroundJobs;
 using SmartInventory.Application.Asset.DTOs;
 using SmartInventory.Application.Asset.Interfaces;
 using SmartInventory.Application.Location.Interfaces;
+using SmartInventory.Application.Notification.DTOs;
 using SmartInventory.Application.Notification.Interfaces;
 using SmartInventory.Domain.Auth.Enums;
+using SmartInventory.Domain.Notification.Enums;
 using AssetEntity = SmartInventory.Domain.Asset.Entities.Asset;
 
 namespace SmartInventory.Infrastructure.Asset.BackgroundJobs;
@@ -71,18 +73,60 @@ public class BulkImportJob : IBulkImportJob
             records.Add(record);
         }
 
+        var successCount = 0;
+        var errorCount = 0;
+
         foreach (var record in records)
         {
             try
             {
                 await CreateAssetAsync(record, userId);
+                successCount++;
             }
             catch
             {
-                // Individual record failures are logged per-row
-                // but don't block the rest of the import
+                errorCount++;
             }
         }
+
+        await SendImportCompletionNotificationAsync(userId, records.Count, successCount, errorCount);
+    }
+
+    private async Task SendImportCompletionNotificationAsync(Guid userId, int total, int successCount, int errorCount)
+    {
+        NotificationEventType eventType;
+        string title;
+        string message;
+
+        if (errorCount == 0)
+        {
+            eventType = NotificationEventType.ImportCompletedSuccess;
+            title = "Bulk Import Completed";
+            message = $"Successfully imported all {total} assets.";
+        }
+        else if (successCount > 0)
+        {
+            eventType = NotificationEventType.ImportCompletedWarnings;
+            title = "Bulk Import Completed with Warnings";
+            message = $"Imported {successCount} of {total} assets. {errorCount} records had errors.";
+        }
+        else
+        {
+            eventType = NotificationEventType.ImportCompletedErrors;
+            title = "Bulk Import Failed";
+            message = $"Failed to import all {total} assets. {errorCount} records had errors.";
+        }
+
+        var dto = new CreateNotificationDto
+        {
+            EventType = eventType,
+            Type = errorCount == 0 ? NotificationType.Info : NotificationType.Warning,
+            Title = title,
+            Message = message,
+            TargetUserIds = new List<Guid> { userId }
+        };
+
+        await _notificationService.CreateNotificationAsync(dto);
     }
 
     private async Task CreateAssetAsync(CreateAssetDto dto, Guid userId)

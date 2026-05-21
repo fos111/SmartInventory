@@ -22,9 +22,15 @@ public class AssetDto
     public DateTime? LastMaintenanceDate { get; set; }
     public DateTime? InstallDate { get; set; }
     public DateTime? LastServiceDate { get; set; }
+    public string? PhotoPath { get; set; }
+    public string? Price { get; set; }
+    public string? BleId { get; set; }
+    public string? StatusEntryNote { get; set; }
+    public string? StatusExitNote { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public bool HasDiscrepancy => !string.IsNullOrEmpty(DetectedRoomCode) && CurrentRoomCode != DetectedRoomCode;
+    public bool IsDeleted { get; set; }
     public string? ZoneCode { get; set; }
     public string? ZoneName { get; set; }
 }

@@ -22,6 +22,24 @@ public class Asset
     public DateTime? LastMaintenanceDate { get; set; }
     public DateTime? InstallDate { get; set; }
     public DateTime? LastServiceDate { get; set; }
+    public string? PhotoPath { get; set; }
+    public string? Price { get; set; }
+    public string? BleId { get; set; }
+
+    /// <summary>
+    /// Note provided when asset entered the current Maintenance or CriticalIssue status.
+    /// Describes what work is needed or what is wrong.
+    /// Cleared when asset leaves Maintenance/CriticalIssue.
+    /// </summary>
+    public string? StatusEntryNote { get; set; }
+
+    /// <summary>
+    /// Note provided when asset exits Maintenance or CriticalIssue back to Active/InStock.
+    /// Describes what maintenance was performed or how the issue was resolved.
+    /// Persists across future status changes for audit reference.
+    /// </summary>
+    public string? StatusExitNote { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
     public DateTime? DeletedAt { get; set; }

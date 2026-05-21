@@ -29,10 +29,12 @@ public class ActivityLogRepository : IActivityLogRepository
     {
         var query = _context.ActivityLogs.AsQueryable();
 
+        // Ensure UTC Kind — query-string DateTimes come as Unspecified,
+        // which Npgsql rejects for 'timestamp with time zone' columns.
         if (from.HasValue)
-            query = query.Where(l => l.ChangedAt >= from.Value);
+            query = query.Where(l => l.ChangedAt >= DateTime.SpecifyKind(from.Value, DateTimeKind.Utc));
         if (to.HasValue)
-            query = query.Where(l => l.ChangedAt <= to.Value);
+            query = query.Where(l => l.ChangedAt <= DateTime.SpecifyKind(to.Value, DateTimeKind.Utc));
 
         return await query
             .OrderByDescending(l => l.ChangedAt)

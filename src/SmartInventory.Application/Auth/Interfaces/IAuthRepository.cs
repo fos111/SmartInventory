@@ -13,6 +13,7 @@ public interface IAuthRepository
     Task<bool> ExistsByEmailAsync(string email, CancellationToken ct = default);
     Task AddAsync(User user, CancellationToken ct = default);
     Task UpdateAsync(User user, CancellationToken ct = default);
+    Task<List<User>> GetAllAsync(CancellationToken ct = default);
     Task<List<User>> GetUsersByRoleAsync(UserRole role, CancellationToken ct = default);
     Task<List<User>> GetUsersByStatusAsync(AccountStatus status, CancellationToken ct = default);
 }

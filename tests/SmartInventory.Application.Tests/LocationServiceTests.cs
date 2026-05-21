@@ -4,7 +4,10 @@ using SmartInventory.Application.Asset.Interfaces;
 using SmartInventory.Application.Location.DTOs;
 using SmartInventory.Application.Location.Interfaces;
 using SmartInventory.Application.Location.Services;
+using SmartInventory.Application.Notification.DTOs;
+using SmartInventory.Domain.Auth.Enums;
 using SmartInventory.Domain.Location.Entities;
+using SmartInventory.Domain.Notification.Enums;
 using Xunit;
 
 namespace SmartInventory.Application.Tests;
@@ -13,19 +16,25 @@ public class LocationServiceTests : ApplicationTestBase
 {
     private readonly Mock<ILocationRepository> _repositoryMock;
     private readonly Mock<IActivityLogService> _activityLogServiceMock;
+    private readonly Mock<SmartInventory.Application.Notification.Interfaces.INotificationService> _notificationServiceMock;
     private readonly AutoMapper.Mapper _mapper;
 
     public LocationServiceTests()
     {
         _repositoryMock = new Mock<ILocationRepository>();
         _activityLogServiceMock = new Mock<IActivityLogService>();
+        _notificationServiceMock = new Mock<SmartInventory.Application.Notification.Interfaces.INotificationService>();
 
         var config = new AutoMapper.MapperConfiguration(cfg =>
             cfg.AddProfile<SmartInventory.Application.Location.Mappings.LocationMappingProfile>());
         _mapper = new AutoMapper.Mapper(config);
     }
 
-    private LocationService CreateService() => new LocationService(_repositoryMock.Object, _activityLogServiceMock.Object, _mapper);
+    private LocationService CreateService() => new LocationService(
+        _repositoryMock.Object,
+        _activityLogServiceMock.Object,
+        _notificationServiceMock.Object,
+        _mapper);
 
     [Fact]
     public async Task GetHierarchyAsync_WithData_ReturnsHierarchy()
@@ -298,6 +307,7 @@ public class LocationServiceTests : ApplicationTestBase
     [Fact]
     public async Task CreateFloorAsync_ValidData_ReturnsCreatedFloor()
     {
+        var zoneId = Guid.NewGuid();
         var buildingId = Guid.NewGuid();
         var dto = new CreateFloorDto
         {
@@ -306,9 +316,11 @@ public class LocationServiceTests : ApplicationTestBase
             BuildingId = buildingId
         };
 
-        var building = new Building { Id = buildingId, Code = "BLD1", Name = "Building 1" };
-        
+        var building = new Building { Id = buildingId, Code = "BLD1", Name = "Building 1", ZoneId = zoneId };
+
         _repositoryMock.Setup(r => r.GetBuildingByIdAsync(buildingId)).ReturnsAsync(building);
+        _repositoryMock.Setup(r => r.GetZoneByIdAsync(zoneId))
+            .ReturnsAsync(new Zone { Id = zoneId, Code = "Z1", Name = "Zone One" });
         _repositoryMock.Setup(r => r.AddFloorAsync(It.IsAny<Floor>()))
             .ReturnsAsync((Floor f) => f);
 
@@ -346,12 +358,14 @@ public class LocationCreationTrackingTests : ApplicationTestBase
 {
     private readonly Mock<ILocationRepository> _repositoryMock;
     private readonly Mock<IActivityLogService> _activityLogServiceMock;
+    private readonly Mock<SmartInventory.Application.Notification.Interfaces.INotificationService> _notificationServiceMock;
     private readonly AutoMapper.Mapper _mapper;
 
     public LocationCreationTrackingTests()
     {
         _repositoryMock = new Mock<ILocationRepository>();
         _activityLogServiceMock = new Mock<IActivityLogService>();
+        _notificationServiceMock = new Mock<SmartInventory.Application.Notification.Interfaces.INotificationService>();
 
         var config = new AutoMapper.MapperConfiguration(cfg =>
             cfg.AddProfile<SmartInventory.Application.Location.Mappings.LocationMappingProfile>());
@@ -359,7 +373,7 @@ public class LocationCreationTrackingTests : ApplicationTestBase
     }
 
     private LocationService CreateService()
-        => new LocationService(_repositoryMock.Object, _activityLogServiceMock.Object, _mapper);
+        => new LocationService(_repositoryMock.Object, _activityLogServiceMock.Object, _notificationServiceMock.Object, _mapper);
 
     [Fact]
     public async Task CreateRoomAsync_ShouldLogCreationActivity()
@@ -420,6 +434,7 @@ public class LocationCreationTrackingTests : ApplicationTestBase
     [Fact]
     public async Task CreateFloorAsync_ShouldLogCreationActivity()
     {
+        var zoneId = Guid.NewGuid();
         var buildingId = Guid.NewGuid();
         var userId = Guid.NewGuid();
         var dto = new CreateFloorDto
@@ -430,7 +445,9 @@ public class LocationCreationTrackingTests : ApplicationTestBase
         };
 
         _repositoryMock.Setup(r => r.GetBuildingByIdAsync(buildingId))
-            .ReturnsAsync(new Building { Id = buildingId, Code = "BLD1" });
+            .ReturnsAsync(new Building { Id = buildingId, Code = "BLD1", ZoneId = zoneId });
+        _repositoryMock.Setup(r => r.GetZoneByIdAsync(zoneId))
+            .ReturnsAsync(new Zone { Id = zoneId, Code = "Z1", Name = "Zone One" });
         _repositoryMock.Setup(r => r.AddFloorAsync(It.IsAny<Floor>()))
             .ReturnsAsync((Floor f) => f);
 
@@ -441,5 +458,179 @@ public class LocationCreationTrackingTests : ApplicationTestBase
         result.Level.Should().Be(3);
         _activityLogServiceMock.Verify(a => a.TrackFacilityChangeAsync(
             "Created", "Floor", buildingId.ToString(), $"Level 3", null, userId), Times.Once);
+    }
+}
+
+public class LocationNotificationTests : ApplicationTestBase
+{
+    private readonly Mock<ILocationRepository> _repositoryMock;
+    private readonly Mock<IActivityLogService> _activityLogServiceMock;
+    private readonly Mock<SmartInventory.Application.Notification.Interfaces.INotificationService> _notificationServiceMock;
+    private readonly AutoMapper.Mapper _mapper;
+
+    public LocationNotificationTests()
+    {
+        _repositoryMock = new Mock<ILocationRepository>();
+        _activityLogServiceMock = new Mock<IActivityLogService>();
+        _notificationServiceMock = new Mock<SmartInventory.Application.Notification.Interfaces.INotificationService>();
+
+        var config = new AutoMapper.MapperConfiguration(cfg =>
+            cfg.AddProfile<SmartInventory.Application.Location.Mappings.LocationMappingProfile>());
+        _mapper = new AutoMapper.Mapper(config);
+    }
+
+    private LocationService CreateService()
+        => new LocationService(_repositoryMock.Object, _activityLogServiceMock.Object, _notificationServiceMock.Object, _mapper);
+
+    [Fact]
+    public async Task CreateBuildingAsync_SendsFacilityBuildingCreatedNotification()
+    {
+        var zoneId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var dto = new CreateBuildingDto
+        {
+            Code = "NOTIFY-BLD",
+            Name = "Notification Building",
+            ZoneId = zoneId
+        };
+
+        _repositoryMock.Setup(r => r.IsBuildingCodeUniqueAsync(dto.Code)).ReturnsAsync(true);
+        _repositoryMock.Setup(r => r.GetZoneByIdAsync(zoneId))
+            .ReturnsAsync(new Zone { Id = zoneId, Code = "ZONE" });
+        _repositoryMock.Setup(r => r.AddBuildingAsync(It.IsAny<Building>()))
+            .ReturnsAsync((Building b) => b);
+
+        var result = await CreateService().CreateBuildingAsync(dto, userId);
+
+        result.Should().NotBeNull();
+        _notificationServiceMock.Verify(
+            n => n.CreateNotificationAsync(
+                It.Is<CreateNotificationDto>(d =>
+                    d.EventType == NotificationEventType.FacilityBuildingCreated &&
+                    d.Type == NotificationType.Info &&
+                    d.TargetRole == UserRole.Supervisor),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateFloorAsync_SendsFacilityFloorCreatedNotification()
+    {
+        var zoneId = Guid.NewGuid();
+        var buildingId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var dto = new CreateFloorDto
+        {
+            Level = 5,
+            Description = "Fifth floor",
+            BuildingId = buildingId
+        };
+
+        _repositoryMock.Setup(r => r.GetBuildingByIdAsync(buildingId))
+            .ReturnsAsync(new Building { Id = buildingId, Code = "BLD1", Name = "Main", ZoneId = zoneId });
+        _repositoryMock.Setup(r => r.GetZoneByIdAsync(zoneId))
+            .ReturnsAsync(new Zone { Id = zoneId, Code = "Z1", Name = "Zone One" });
+        _repositoryMock.Setup(r => r.AddFloorAsync(It.IsAny<Floor>()))
+            .ReturnsAsync((Floor f) => f);
+
+        var result = await CreateService().CreateFloorAsync(dto, userId);
+
+        result.Should().NotBeNull();
+        _notificationServiceMock.Verify(
+            n => n.CreateNotificationAsync(
+                It.Is<CreateNotificationDto>(d =>
+                    d.EventType == NotificationEventType.FacilityFloorCreated &&
+                    d.Type == NotificationType.Info &&
+                    d.TargetRole == UserRole.Supervisor),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateRoomAsync_SendsFacilityRoomCreatedNotification()
+    {
+        var floorId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var dto = new CreateRoomDto
+        {
+            Code = "NOTIFY-RM",
+            Name = "Notification Room",
+            FloorId = floorId
+        };
+
+        _repositoryMock.Setup(r => r.IsRoomCodeUniqueAsync(dto.Code)).ReturnsAsync(true);
+        _repositoryMock.Setup(r => r.GetFloorByIdAsync(floorId))
+            .ReturnsAsync(new Floor { Id = floorId, Level = 1 });
+        _repositoryMock.Setup(r => r.AddRoomAsync(It.IsAny<Room>()))
+            .ReturnsAsync((Room r) => r);
+        _repositoryMock.Setup(r => r.GetRoomByIdAsync(It.IsAny<Guid>()))
+            .ReturnsAsync((Guid id) => new Room { Id = id, Code = dto.Code, Name = dto.Name, FloorId = floorId });
+
+        var result = await CreateService().CreateRoomAsync(dto, userId);
+
+        result.Should().NotBeNull();
+        _notificationServiceMock.Verify(
+            n => n.CreateNotificationAsync(
+                It.Is<CreateNotificationDto>(d =>
+                    d.EventType == NotificationEventType.FacilityRoomCreated &&
+                    d.Type == NotificationType.Info &&
+                    d.TargetRole == UserRole.Supervisor),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateRoomGeometryAsync_SendsFacilityRoomUpdatedNotification()
+    {
+        var roomId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var dto = new UpdateRoomGeometryDto
+        {
+            X = 100,
+            Y = 200,
+            Width = 300,
+            Height = 400,
+            Color = "#ff0000",
+            Stroke = "#00ff00"
+        };
+
+        _repositoryMock.Setup(r => r.GetRoomByIdAsync(roomId))
+            .ReturnsAsync(new Room { Id = roomId, Code = "RM1", Name = "Test Room" });
+        _repositoryMock.Setup(r => r.UpsertRoomGeometryAsync(It.IsAny<RoomGeometry>()))
+            .ReturnsAsync(new RoomGeometry { RoomId = roomId });
+
+        var result = await CreateService().UpdateRoomGeometryAsync(roomId, dto, userId);
+
+        result.Should().NotBeNull();
+        _notificationServiceMock.Verify(
+            n => n.CreateNotificationAsync(
+                It.Is<CreateNotificationDto>(d =>
+                    d.EventType == NotificationEventType.FacilityRoomUpdated &&
+                    d.Type == NotificationType.Info &&
+                    d.TargetRole == UserRole.Supervisor),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteRoomAsync_SendsFacilityRoomDeletedNotification()
+    {
+        var roomId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var room = new Room { Id = roomId, Code = "RM-DEL", Name = "Delete Room" };
+
+        _repositoryMock.Setup(r => r.GetRoomByIdAsync(roomId)).ReturnsAsync(room);
+        _repositoryMock.Setup(r => r.DeleteRoomAsync(roomId)).Returns(Task.CompletedTask);
+
+        await CreateService().DeleteRoomAsync(roomId, userId);
+
+        _notificationServiceMock.Verify(
+            n => n.CreateNotificationAsync(
+                It.Is<CreateNotificationDto>(d =>
+                    d.EventType == NotificationEventType.FacilityRoomDeleted &&
+                    d.Type == NotificationType.Warning &&
+                    d.TargetRole == UserRole.Supervisor),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }

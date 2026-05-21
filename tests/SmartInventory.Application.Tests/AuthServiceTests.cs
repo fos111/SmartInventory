@@ -3,8 +3,10 @@ using Moq;
 using SmartInventory.Application.Auth.DTOs.Requests;
 using SmartInventory.Application.Auth.Interfaces;
 using SmartInventory.Application.Auth.Services;
+using SmartInventory.Application.Notification.DTOs;
 using SmartInventory.Domain.Auth.Entities;
 using SmartInventory.Domain.Auth.Enums;
+using SmartInventory.Domain.Notification.Enums;
 using Xunit;
 
 namespace SmartInventory.Application.Tests;
@@ -16,6 +18,7 @@ public class AuthServiceTests : ApplicationTestBase
     private readonly Mock<ITokenService> _tokenServiceMock;
     private readonly Mock<IEmailVerificationService> _emailVerificationServiceMock;
     private readonly Mock<IEmailSender> _emailSenderMock;
+    private readonly Mock<SmartInventory.Application.Notification.Interfaces.INotificationService> _notificationServiceMock;
     private readonly AuthService _authService;
 
     public AuthServiceTests()
@@ -25,13 +28,15 @@ public class AuthServiceTests : ApplicationTestBase
         _tokenServiceMock = new Mock<ITokenService>();
         _emailVerificationServiceMock = new Mock<IEmailVerificationService>();
         _emailSenderMock = new Mock<IEmailSender>();
+        _notificationServiceMock = new Mock<SmartInventory.Application.Notification.Interfaces.INotificationService>();
 
         _authService = new AuthService(
             _authRepositoryMock.Object,
             _passwordHasherMock.Object,
             _tokenServiceMock.Object,
             _emailVerificationServiceMock.Object,
-            _emailSenderMock.Object
+            _emailSenderMock.Object,
+            _notificationServiceMock.Object
         );
     }
 
@@ -275,6 +280,125 @@ public class AuthServiceTests : ApplicationTestBase
 
         result.Should().NotBeNull();
         result!.Token.Should().Be("limited-token");
+    }
+
+    // ─── Notification Trigger Tests ─────────────────────────────
+
+    [Fact]
+    public async Task LoginAsync_Success_SendsAuthLoginSuccessNotification()
+    {
+        var user = CreateTestUser(status: AccountStatus.Active, isEmailVerified: true);
+        var request = new LoginRequest { Email = "test@example.com", Password = "password123" };
+
+        _authRepositoryMock.Setup(r => r.GetByEmailAsync("test@example.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        _passwordHasherMock.Setup(p => p.Verify("password123", user.PasswordHash)).Returns(true);
+        _tokenServiceMock.Setup(t => t.GenerateToken(user)).Returns("jwt-token");
+
+        var result = await _authService.LoginAsync(request);
+
+        result.Should().NotBeNull();
+        _notificationServiceMock.Verify(
+            n => n.CreateNotificationAsync(
+                It.Is<CreateNotificationDto>(d =>
+                    d.EventType == NotificationEventType.AuthLoginSuccess &&
+                    d.Type == NotificationType.Info &&
+                    d.TargetRole == UserRole.Supervisor),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task LoginAsync_InvalidPassword_SendsAuthLoginErrorNotification()
+    {
+        var user = CreateTestUser(status: AccountStatus.Active, isEmailVerified: true);
+        var request = new LoginRequest { Email = "test@example.com", Password = "wrongpassword" };
+
+        _authRepositoryMock.Setup(r => r.GetByEmailAsync("test@example.com", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        _passwordHasherMock.Setup(p => p.Verify("wrongpassword", user.PasswordHash)).Returns(false);
+
+        var result = await _authService.LoginAsync(request);
+
+        result.Should().BeNull();
+        _notificationServiceMock.Verify(
+            n => n.CreateNotificationAsync(
+                It.Is<CreateNotificationDto>(d =>
+                    d.EventType == NotificationEventType.AuthLoginError &&
+                    d.Type == NotificationType.Warning &&
+                    d.TargetRole == UserRole.Supervisor),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task RegisterAsync_WithExistingUsername_SendsAuthRegisterErrorNotification()
+    {
+        var request = new RegisterRequest
+        {
+            Username = "existinguser",
+            Password = "password123",
+            Email = "new@test.com"
+        };
+
+        _authRepositoryMock.Setup(r => r.ExistsAsync("existinguser", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var result = await _authService.RegisterAsync(request);
+
+        result.Should().BeNull();
+        _notificationServiceMock.Verify(
+            n => n.CreateNotificationAsync(
+                It.Is<CreateNotificationDto>(d =>
+                    d.EventType == NotificationEventType.AuthRegisterError &&
+                    d.Type == NotificationType.Warning &&
+                    d.TargetRole == UserRole.Supervisor),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task VerifyEmailAsync_ValidToken_SendsAuthEmailConfirmedNotification()
+    {
+        var user = CreateTestUser(isEmailVerified: false);
+        var token = "valid-token";
+
+        _emailVerificationServiceMock.Setup(e => e.ValidateTokenAsync(token, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, string.Empty));
+        _authRepositoryMock.Setup(r => r.GetUserByVerificationTokenAsync(token, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
+        _emailVerificationServiceMock.Setup(e => e.MarkTokenAsUsedAsync(token, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var result = await _authService.VerifyEmailAsync(token);
+
+        result.Should().BeTrue();
+        _notificationServiceMock.Verify(
+            n => n.CreateNotificationAsync(
+                It.Is<CreateNotificationDto>(d =>
+                    d.EventType == NotificationEventType.AuthEmailConfirmed &&
+                    d.Type == NotificationType.Info &&
+                    d.TargetRole == UserRole.Supervisor),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task VerifyEmailAsync_InvalidToken_DoesNotSendNotification()
+    {
+        var token = "invalid-token";
+
+        _emailVerificationServiceMock.Setup(e => e.ValidateTokenAsync(token, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, "Invalid token"));
+
+        var result = await _authService.VerifyEmailAsync(token);
+
+        result.Should().BeFalse();
+        _notificationServiceMock.Verify(
+            n => n.CreateNotificationAsync(
+                It.IsAny<CreateNotificationDto>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     private static User CreateTestUser(AccountStatus status = AccountStatus.Pending, bool isEmailVerified = false)

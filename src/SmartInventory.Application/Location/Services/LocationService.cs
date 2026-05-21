@@ -6,7 +6,11 @@ using AutoMapper;
 using SmartInventory.Application.Asset.Interfaces;
 using SmartInventory.Application.Location.DTOs;
 using SmartInventory.Application.Location.Interfaces;
+using SmartInventory.Application.Notification.DTOs;
+using SmartInventory.Application.Notification.Interfaces;
+using SmartInventory.Domain.Auth.Enums;
 using SmartInventory.Domain.Location.Entities;
+using SmartInventory.Domain.Notification.Enums;
 
 namespace SmartInventory.Application.Location.Services
 {
@@ -14,12 +18,18 @@ namespace SmartInventory.Application.Location.Services
     {
         private readonly ILocationRepository _repository;
         private readonly IActivityLogService _activityLogService;
+        private readonly INotificationService _notificationService;
         private readonly IMapper _mapper;
 
-        public LocationService(ILocationRepository repository, IActivityLogService activityLogService, IMapper mapper)
+        public LocationService(
+            ILocationRepository repository,
+            IActivityLogService activityLogService,
+            INotificationService notificationService,
+            IMapper mapper)
         {
             _repository = repository;
             _activityLogService = activityLogService;
+            _notificationService = notificationService;
             _mapper = mapper;
         }
 
@@ -82,6 +92,15 @@ namespace SmartInventory.Application.Location.Services
             await _activityLogService.TrackFacilityChangeAsync(
                 "Created", "Room", created.Code, created.Name, null, userId);
 
+            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            {
+                EventType = NotificationEventType.FacilityRoomCreated,
+                Type = NotificationType.Info,
+                Title = "Room Created",
+                Message = $"{created.Name} ({created.Code}) was created on floor {floor.Level}",
+                TargetRole = UserRole.Supervisor
+            });
+
             // Re-fetch with geometry included for the response
             var updatedRoom = await _repository.GetRoomByIdAsync(created.Id);
             return _mapper.Map<RoomDto>(updatedRoom);
@@ -109,6 +128,15 @@ namespace SmartInventory.Application.Location.Services
             await _activityLogService.TrackFacilityChangeAsync(
                 "Created", "Building", created.Code, created.Name, null, userId);
 
+            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            {
+                EventType = NotificationEventType.FacilityBuildingCreated,
+                Type = NotificationType.Info,
+                Title = "Building Created",
+                Message = $"{created.Name} ({created.Code}) was created — Zone: {zone.Name} ({zone.Code})",
+                TargetRole = UserRole.Supervisor
+            });
+
             return _mapper.Map<BuildingDto>(created);
         }
 
@@ -117,6 +145,8 @@ namespace SmartInventory.Application.Location.Services
             var building = await _repository.GetBuildingByIdAsync(dto.BuildingId);
             if (building == null)
                 throw new ArgumentException($"Building with ID {dto.BuildingId} not found.");
+
+            var zone = await _repository.GetZoneByIdAsync(building.ZoneId);
 
             var floor = new Floor
             {
@@ -129,6 +159,15 @@ namespace SmartInventory.Application.Location.Services
 
             await _activityLogService.TrackFacilityChangeAsync(
                 "Created", "Floor", dto.BuildingId.ToString(), $"Level {dto.Level}", null, userId);
+
+            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            {
+                EventType = NotificationEventType.FacilityFloorCreated,
+                Type = NotificationType.Info,
+                Title = "Floor Created",
+                Message = $"Floor {created.Level} was created in {building.Name} ({building.Code}) — Zone: {zone.Name} ({zone.Code})",
+                TargetRole = UserRole.Supervisor
+            });
 
             return _mapper.Map<FloorDto>(created);
         }
@@ -155,6 +194,15 @@ namespace SmartInventory.Application.Location.Services
             await _activityLogService.TrackFacilityChangeAsync(
                 "Updated", "RoomGeometry", room.Code, room.Name, null, userId);
 
+            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            {
+                EventType = NotificationEventType.FacilityRoomUpdated,
+                Type = NotificationType.Info,
+                Title = "Room Updated",
+                Message = $"{room.Name} ({room.Code}) was updated",
+                TargetRole = UserRole.Supervisor
+            });
+
             return _mapper.Map<RoomGeometryDto>(saved);
         }
 
@@ -168,6 +216,15 @@ namespace SmartInventory.Application.Location.Services
 
             await _activityLogService.TrackFacilityChangeAsync(
                 "Deleted", "Room", room.Code, room.Name, null, userId);
+
+            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            {
+                EventType = NotificationEventType.FacilityRoomDeleted,
+                Type = NotificationType.Warning,
+                Title = "Room Deleted",
+                Message = $"{room.Name} ({room.Code}) was deleted",
+                TargetRole = UserRole.Supervisor
+            });
         }
 
         public async Task<List<RoomGeometryDto>> BatchUpdateRoomGeometriesAsync(BatchUpdateRoomGeometriesDto dto, Guid userId)
@@ -197,9 +254,32 @@ namespace SmartInventory.Application.Location.Services
 
             if (dto.Updates.Count > 0)
             {
-                var first = dto.Updates[0];
+                // Fetch room names for the activity log
+                var roomIds = dto.Updates.Select(u => u.RoomId).ToList();
+                var rooms = await _repository.GetRoomsByIdsAsync(roomIds);
+                var roomNames = rooms.Select(r => r.Name).ToList();
+
+                var roomList = string.Join(", ", roomNames.Take(5));
+                if (roomNames.Count > 5)
+                    roomList += $" and {roomNames.Count - 5} more";
+
+                // Determine what type of change occurred
+                var changeTypes = new List<string>();
+                if (dto.Updates.Any(u => u.X.HasValue || u.Y.HasValue))
+                    changeTypes.Add("positions");
+                if (dto.Updates.Any(u => u.Width.HasValue || u.Height.HasValue))
+                    changeTypes.Add("sizes");
+                if (dto.Updates.Any(u => u.Color != null || u.Stroke != null))
+                    changeTypes.Add("appearance");
+
+                var changeDesc = changeTypes.Count > 0
+                    ? string.Join("/", changeTypes) + " updated"
+                    : "updated";
+
                 await _activityLogService.TrackFacilityChangeAsync(
-                    "BatchUpdated", "RoomGeometry", $"batch-{dto.Updates.Count}-rooms", string.Empty, null, userId);
+                    "Updated", "Room", "layout",
+                    $"{roomNames.Count} room{(roomNames.Count > 1 ? "s" : "")}",
+                    $"{changeDesc}: {roomList}", userId);
             }
 
             return results;

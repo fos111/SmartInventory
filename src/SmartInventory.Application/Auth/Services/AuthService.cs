@@ -1,8 +1,11 @@
 using SmartInventory.Application.Auth.DTOs.Requests;
 using SmartInventory.Application.Auth.DTOs.Responses;
 using SmartInventory.Application.Auth.Interfaces;
+using SmartInventory.Application.Notification.DTOs;
+using SmartInventory.Application.Notification.Interfaces;
 using SmartInventory.Domain.Auth.Entities;
 using SmartInventory.Domain.Auth.Enums;
+using SmartInventory.Domain.Notification.Enums;
 
 namespace SmartInventory.Application.Auth.Services;
 
@@ -13,40 +16,85 @@ public class AuthService : IAuthService
     private readonly ITokenService _tokenService;
     private readonly IEmailVerificationService _emailVerificationService;
     private readonly IEmailSender _emailSender;
+    private readonly INotificationService _notificationService;
 
     public AuthService(
         IAuthRepository authRepository,
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
         IEmailVerificationService emailVerificationService,
-        IEmailSender emailSender)
+        IEmailSender emailSender,
+        INotificationService notificationService)
     {
         _authRepository = authRepository;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
         _emailVerificationService = emailVerificationService;
         _emailSender = emailSender;
+        _notificationService = notificationService;
     }
 
     public async Task<AuthResponse?> LoginAsync(LoginRequest request, CancellationToken ct = default)
     {
         var user = await _authRepository.GetByEmailAsync(request.Email, ct);
         if (user == null)
+        {
+            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            {
+                EventType = NotificationEventType.AuthLoginError,
+                Type = NotificationType.Warning,
+                Title = "Login Failed",
+                Message = $"Failed login attempt for {request.Email} — user not found",
+                TargetRole = UserRole.Supervisor
+            }, ct);
+
             return null;
+        }
 
         if (!_passwordHasher.Verify(request.Password, user.PasswordHash))
+        {
+            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            {
+                EventType = NotificationEventType.AuthLoginError,
+                Type = NotificationType.Warning,
+                Title = "Login Failed",
+                Message = $"Failed login attempt for {request.Email} — invalid password",
+                TargetRole = UserRole.Supervisor
+            }, ct);
+
             return null;
+        }
 
         if (!user.IsEmailVerified)
+        {
+            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            {
+                EventType = NotificationEventType.AuthLoginError,
+                Type = NotificationType.Warning,
+                Title = "Login Failed",
+                Message = $"Login blocked for {request.Email} — email not verified",
+                TargetRole = UserRole.Supervisor
+            }, ct);
+
             return new AuthResponse
             {
                 Message = "Email not verified",
                 Status = user.Status,
                 Username = user.Username
             };
+        }
 
         if (user.Status != AccountStatus.Active)
         {
+            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            {
+                EventType = NotificationEventType.AuthLoginError,
+                Type = NotificationType.Warning,
+                Title = "Login Failed",
+                Message = $"Login blocked for {request.Email} — account {user.Status}",
+                TargetRole = UserRole.Supervisor
+            }, ct);
+
             return new AuthResponse
             {
                 Message = "Account not active",
@@ -58,6 +106,16 @@ public class AuthService : IAuthService
         }
 
         var token = _tokenService.GenerateToken(user);
+
+        await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+        {
+            EventType = NotificationEventType.AuthLoginSuccess,
+            Type = NotificationType.Info,
+            Title = "Login Successful",
+            Message = $"User {user.Email} logged in successfully",
+            TargetRole = UserRole.Supervisor
+        }, ct);
+
         return new AuthResponse
         {
             Token = token,
@@ -73,10 +131,32 @@ public class AuthService : IAuthService
     public async Task<AuthResponse?> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
     {
         if (await _authRepository.ExistsAsync(request.Username, ct))
+        {
+            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            {
+                EventType = NotificationEventType.AuthRegisterError,
+                Type = NotificationType.Warning,
+                Title = "Registration Failed",
+                Message = $"Failed registration attempt for {request.Email} — username '{request.Username}' already exists",
+                TargetRole = UserRole.Supervisor
+            }, ct);
+
             return null;
+        }
 
         if (await _authRepository.ExistsByEmailAsync(request.Email, ct))
+        {
+            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            {
+                EventType = NotificationEventType.AuthRegisterError,
+                Type = NotificationType.Warning,
+                Title = "Registration Failed",
+                Message = $"Failed registration attempt for {request.Email} — email already registered",
+                TargetRole = UserRole.Supervisor
+            }, ct);
+
             return null;
+        }
 
         var user = new User
         {
@@ -115,6 +195,15 @@ public class AuthService : IAuthService
         user.IsEmailVerified = true;
         await _authRepository.UpdateAsync(user, ct);
         await _emailVerificationService.MarkTokenAsUsedAsync(token, ct);
+
+        await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+        {
+            EventType = NotificationEventType.AuthEmailConfirmed,
+            Type = NotificationType.Info,
+            Title = "Email Confirmed",
+            Message = $"User {user.Email} confirmed their email address",
+            TargetRole = UserRole.Supervisor
+        }, ct);
 
         await NotifySupervisorsOfVerifiedUser(user, ct);
 
@@ -178,6 +267,15 @@ public class AuthService : IAuthService
 
     private async Task NotifySupervisorsOfNewUser(User user, CancellationToken ct = default)
     {
+        await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+        {
+            EventType = NotificationEventType.AuthRegisterSuccess,
+            Type = NotificationType.Info,
+            Title = "New User Registration",
+            Message = $"{user.Username} ({user.Email}) registered and is awaiting approval",
+            TargetRole = UserRole.Supervisor
+        }, ct);
+
         var htmlBody = $@"
             <h2>New User Registration</h2>
             <p>A new user has registered and is awaiting approval:</p>
@@ -192,6 +290,15 @@ public class AuthService : IAuthService
 
     private async Task NotifySupervisorsOfVerifiedUser(User user, CancellationToken ct = default)
     {
+        await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+        {
+            EventType = NotificationEventType.AuthEmailConfirmed,
+            Type = NotificationType.Info,
+            Title = "User Email Verified",
+            Message = $"{user.Username} ({user.Email}) verified their email and is awaiting approval",
+            TargetRole = UserRole.Supervisor
+        }, ct);
+
         var htmlBody = $@"
             <h2>User Email Verified</h2>
             <p>A user has verified their email and is awaiting approval:</p>
@@ -205,6 +312,15 @@ public class AuthService : IAuthService
 
     private async Task NotifySupervisorsOfReEvaluation(User user, CancellationToken ct = default)
     {
+        await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+        {
+            EventType = NotificationEventType.AuthReEvaluationRequested,
+            Type = NotificationType.Info,
+            Title = "Re-Evaluation Request",
+            Message = $"{user.Username} ({user.Email}) requested re-evaluation after rejection",
+            TargetRole = UserRole.Supervisor
+        }, ct);
+
         var htmlBody = $@"
             <h2>Re-Evaluation Request</h2>
             <p>A previously rejected user has requested re-evaluation:</p>

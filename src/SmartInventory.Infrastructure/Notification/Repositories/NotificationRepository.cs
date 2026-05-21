@@ -57,4 +57,29 @@ public class NotificationRepository : INotificationRepository
         return await _context.Notifications
             .CountAsync(n => n.UserId == userId && !n.IsRead);
     }
+
+    public async Task<int> MarkAllAsReadAsync(Guid userId)
+    {
+        return await _context.Notifications
+            .Where(n => n.UserId == userId && !n.IsRead)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(n => n.IsRead, true));
+    }
+
+    public async Task<bool> DeleteNotificationAsync(Guid id, Guid userId)
+    {
+        var notification = await _context.Notifications.FindAsync(id);
+        if (notification == null || notification.UserId != userId)
+            return false;
+
+        _context.Notifications.Remove(notification);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<int> DeleteAllNotificationsAsync(Guid userId)
+    {
+        return await _context.Notifications
+            .Where(n => n.UserId == userId)
+            .ExecuteDeleteAsync();
+    }
 }

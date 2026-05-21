@@ -145,7 +145,7 @@ namespace SmartInventory.API.Controllers
         {
             try
             {
-                var asset = await _assetService.UpdateStatusAsync(id, dto.Status, GetUserId(), GetUserRole());
+                var asset = await _assetService.UpdateStatusAsync(id, dto.Status, GetUserId(), GetUserRole(), dto.Note);
                 return Ok(asset);
             }
             catch (ArgumentException ex)
@@ -203,6 +203,20 @@ namespace SmartInventory.API.Controllers
             {
                 var qrBytes = await _assetService.GenerateQrCodeAsync(id);
                 return File(qrBytes, "image/png");
+            }
+            catch (ArgumentException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        [HttpGet("{id:guid}/barcode")]
+        public async Task<IActionResult> GetBarcode(Guid id, [FromQuery] int width = 300, [FromQuery] int height = 80)
+        {
+            try
+            {
+                var barcodeBytes = await _assetService.GenerateBarcodeAsync(id, width, height);
+                return File(barcodeBytes, "image/png");
             }
             catch (ArgumentException ex)
             {

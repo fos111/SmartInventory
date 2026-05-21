@@ -12,6 +12,7 @@ public class AssetMappingProfile : Profile
         CreateMap<AssetEntity, AssetDto>()
             .ForMember(dest => dest.HasDiscrepancy, 
                 opt => opt.MapFrom(src => !string.IsNullOrEmpty(src.DetectedRoomCode) && src.CurrentRoomCode != src.DetectedRoomCode))
+            .ForMember(dest => dest.IsDeleted, opt => opt.MapFrom(src => src.DeletedAt != null))
             .ForMember(dest => dest.ZoneCode, opt => opt.Ignore())
             .ForMember(dest => dest.ZoneName, opt => opt.Ignore());
 

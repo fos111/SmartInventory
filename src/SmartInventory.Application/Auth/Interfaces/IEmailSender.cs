@@ -6,4 +6,5 @@ public interface IEmailSender
 {
     Task SendEmailAsync(string to, string subject, string htmlBody, CancellationToken ct = default);
     Task SendToRoleAsync(UserRole role, string subject, string htmlBody, CancellationToken ct = default);
+    Task SendVerificationEmailAsync(string toEmail, string verificationLink, CancellationToken ct = default);
 }

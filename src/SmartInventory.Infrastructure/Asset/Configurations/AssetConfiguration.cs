@@ -13,6 +13,7 @@ public class AssetConfiguration : IEntityTypeConfiguration<AssetEntity>
         
         builder.HasIndex(a => a.AssetTag).IsUnique();
         builder.HasIndex(a => a.RfidTagId).IsUnique();
+        builder.HasIndex(a => a.BleId).IsUnique();
         builder.HasIndex(a => a.SerialNumber).IsUnique();
         
         builder.Property(a => a.AssetTag).HasMaxLength(50).IsRequired();
@@ -25,5 +26,9 @@ public class AssetConfiguration : IEntityTypeConfiguration<AssetEntity>
         builder.Property(a => a.CurrentRoomCode).HasMaxLength(20).IsRequired();
         builder.Property(a => a.DetectedRoomCode).HasMaxLength(20);
         builder.Property(a => a.RfidTagId).HasMaxLength(100);
+        builder.Property(a => a.Price).HasMaxLength(50);
+        builder.Property(a => a.BleId).HasMaxLength(100);
+        builder.Property(a => a.StatusEntryNote).HasMaxLength(1000);
+        builder.Property(a => a.StatusExitNote).HasMaxLength(1000);
     }
 }

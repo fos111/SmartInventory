@@ -12,4 +12,7 @@ public interface INotificationRepository
     Task<NotificationEntity?> GetByIdAsync(Guid id);
     Task MarkAsReadAsync(Guid id);
     Task<int> GetUnreadCountAsync(Guid userId);
+    Task<int> MarkAllAsReadAsync(Guid userId);
+    Task<bool> DeleteNotificationAsync(Guid id, Guid userId);
+    Task<int> DeleteAllNotificationsAsync(Guid userId);
 }

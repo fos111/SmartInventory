@@ -8,14 +8,14 @@ namespace SmartInventory.Infrastructure.Auth.Security;
 public class EmailVerificationService : IEmailVerificationService
 {
     private readonly ApplicationDbContext _context;
-    private readonly IEmailService _emailService;
+    private readonly IEmailSender _emailSender;
     private const int TokenExpiryHours = 24;
     private const string BaseUrl = "http://localhost:3000";
 
-    public EmailVerificationService(ApplicationDbContext context, IEmailService emailService)
+    public EmailVerificationService(ApplicationDbContext context, IEmailSender emailSender)
     {
         _context = context;
-        _emailService = emailService;
+        _emailSender = emailSender;
     }
 
     public string GenerateToken()
@@ -45,7 +45,7 @@ public class EmailVerificationService : IEmailVerificationService
         await _context.SaveChangesAsync(ct);
 
         var verifyUrl = $"{BaseUrl}/verify-email?token={token}";
-        await _emailService.SendVerificationEmailAsync(user.Email, verifyUrl, ct);
+        await _emailSender.SendVerificationEmailAsync(user.Email, verifyUrl, ct);
     }
 
     public async Task<(bool Success, string Error)> ValidateTokenAsync(string token, CancellationToken ct = default)

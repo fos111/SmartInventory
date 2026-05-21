@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using SmartInventory.Domain.Auth.Entities;
 using SmartInventory.Domain.Location.Entities;
+using SmartInventory.Domain.Mobile.Auth.Entities;
+using SmartInventory.Domain.Mobile.Entities;
 using AssetEntity = SmartInventory.Domain.Asset.Entities.Asset;
 using CategoryGroupEntity = SmartInventory.Domain.Asset.Entities.CategoryGroup;
 using AssetHistoryEntity = SmartInventory.Domain.Asset.Entities.AssetHistory;
@@ -20,6 +22,10 @@ public class ApplicationDbContext : DbContext
     // Auth tables
     public DbSet<User> Users => Set<User>();
     public DbSet<EmailVerificationToken> EmailVerificationTokens => Set<EmailVerificationToken>();
+
+    // Mobile auth tables
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
     // Location tables
     public DbSet<Site> Sites => Set<Site>();
@@ -41,12 +47,18 @@ public class ApplicationDbContext : DbContext
     // User preferences tables
     public DbSet<UserPreferenceEntity> UserPreferences => Set<UserPreferenceEntity>();
 
+    // Mobile sync queue tables
+    public DbSet<SyncQueueEntry> SyncQueueEntries => Set<SyncQueueEntry>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
         // Apply configurations from Infrastructure assembly
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+
+        // Seed location data (zones, buildings, floors, rooms)
+        LocationSeedData.Seed(modelBuilder);
 
         // Global query filter for soft delete
         modelBuilder.Entity<AssetEntity>().HasQueryFilter(a => a.DeletedAt == null);

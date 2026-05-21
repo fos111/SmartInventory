@@ -7,10 +7,13 @@ services:
       - "5000:8080"
     environment:
       - ConnectionStrings__DefaultConnection=Host=db;Database=smartinventory;Username=postgres;Password=postgres
+      - ConnectionStrings__Redis=redis:6379
       - ASPNETCORE_ENVIRONMENT=Development
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - smart-inventory-network
     restart: unless-stopped
@@ -34,8 +37,24 @@ services:
       retries: 5
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - smart-inventory-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   smart-inventory-network:

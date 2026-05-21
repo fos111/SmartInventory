@@ -5,13 +5,16 @@ using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
 using Hangfire;
+using BarcodeStandard;
 using QRCoder;
 using SmartInventory.Application.Asset.BackgroundJobs;
 using SmartInventory.Application.Asset.Common;
 using SmartInventory.Application.Asset.DTOs;
 using SmartInventory.Application.Asset.Filters;
 using SmartInventory.Application.Asset.Interfaces;
+using SmartInventory.Application.Caching;
 using SmartInventory.Application.Location.Interfaces;
+using SmartInventory.Application.Notification.DTOs;
 using SmartInventory.Application.Notification.Interfaces;
 using SmartInventory.Domain.Asset.Enums;
 using SmartInventory.Domain.Auth.Enums;
@@ -29,6 +32,7 @@ public class AssetService : IAssetService
     private readonly ILocationRepository _locationRepository;
     private readonly IActivityLogService _activityLogService;
     private readonly IMapper _mapper;
+    private readonly ICacheService? _cacheService;
 
     public AssetService(
         IAssetRepository repository, 
@@ -37,7 +41,8 @@ public class AssetService : IAssetService
         INotificationService notificationService,
         ILocationRepository locationRepository,
         IActivityLogService activityLogService,
-        IMapper mapper)
+        IMapper mapper,
+        ICacheService? cacheService = null)
     {
         _repository = repository;
         _backgroundJobClient = backgroundJobClient;
@@ -46,6 +51,16 @@ public class AssetService : IAssetService
         _locationRepository = locationRepository;
         _activityLogService = activityLogService;
         _mapper = mapper;
+        _cacheService = cacheService;
+    }
+
+    private async Task InvalidateCachesAsync()
+    {
+        if (_cacheService != null)
+        {
+            await _cacheService.RemoveByPrefixAsync("stats:");
+            await _cacheService.RemoveByPrefixAsync("asset:");
+        }
     }
 
     private string GenerateAssetTag()
@@ -128,9 +143,21 @@ public class AssetService : IAssetService
         var asset = _mapper.Map<AssetEntity>(dto);
         var created = await _repository.AddAsync(asset);
 
+        await InvalidateCachesAsync();
+
         await _activityLogService.TrackFacilityChangeAsync(
             "Created", "Asset", created.AssetTag, created.Name, null, userId);
-        
+
+        await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+        {
+            EventType = NotificationEventType.EquipmentCrudCreated,
+            Type = NotificationType.Info,
+            Title = "Asset Created",
+            Message = $"Asset {created.AssetTag} ({created.Name}) has been created",
+            AssetId = created.Id,
+            TargetRole = UserRole.Supervisor
+        });
+
         return _mapper.Map<AssetDto>(created);
     }
 
@@ -146,16 +173,32 @@ public class AssetService : IAssetService
         if (!string.IsNullOrEmpty(dto.CurrentRoomCode) && !await _repository.IsRoomCodeValidAsync(dto.CurrentRoomCode))
             throw new ArgumentException($"Room code '{dto.CurrentRoomCode}' is not valid.");
 
+        var changeParts = new List<string>();
+
         if (asset.Name != dto.Name)
+        {
             await _historyService.TrackChangeAsync(id, "Name", asset.Name, dto.Name, userId);
+            changeParts.Add($"renamed to \"{dto.Name}\"");
+        }
         if (asset.Description != dto.Description)
+        {
             await _historyService.TrackChangeAsync(id, "Description", asset.Description, dto.Description, userId);
+        }
         if (asset.Category != dto.Category)
+        {
             await _historyService.TrackChangeAsync(id, "Category", asset.Category, dto.Category, userId);
+            changeParts.Add($"category → {dto.Category}");
+        }
         if (asset.Status != dto.Status)
+        {
             await _historyService.TrackChangeAsync(id, "Status", asset.Status.ToString(), dto.Status.ToString(), userId);
+            changeParts.Add($"status → {dto.Status}");
+        }
         if (!string.IsNullOrEmpty(dto.CurrentRoomCode) && asset.CurrentRoomCode != dto.CurrentRoomCode)
+        {
             await _historyService.TrackChangeAsync(id, "CurrentRoomCode", asset.CurrentRoomCode, dto.CurrentRoomCode, userId);
+            changeParts.Add($"moved to {dto.CurrentRoomCode}");
+        }
 
         asset.Name = dto.Name;
         asset.Description = dto.Description;
@@ -165,6 +208,22 @@ public class AssetService : IAssetService
             asset.CurrentRoomCode = dto.CurrentRoomCode;
 
         var updated = await _repository.UpdateAsync(asset);
+        await InvalidateCachesAsync();
+
+        var message = changeParts.Count > 0
+            ? $"{asset.Name} ({asset.AssetTag}) — {string.Join(", ", changeParts)}"
+            : $"{asset.Name} ({asset.AssetTag}) was updated";
+
+        await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+        {
+            EventType = NotificationEventType.EquipmentCrudUpdated,
+            Type = NotificationType.Info,
+            Title = "Asset Updated",
+            Message = message,
+            AssetId = updated.Id,
+            TargetRole = UserRole.Supervisor
+        });
+
         return _mapper.Map<AssetDto>(updated);
     }
 
@@ -174,14 +233,25 @@ public class AssetService : IAssetService
         if (asset == null)
             throw new ArgumentException($"Asset with ID {id} not found.");
 
-        if (!await _repository.IsRoomCodeValidAsync(newRoomCode))
-            throw new ArgumentException($"Room code '{newRoomCode}' is not valid.");
+        // Accept both room UUID and room code
+        // Flutter historically sends room UUIDs; resolve to room code if needed
+        var roomCode = newRoomCode;
+        if (Guid.TryParse(newRoomCode, out var roomGuid))
+        {
+            var room = await _locationRepository.GetRoomByIdAsync(roomGuid);
+            if (room != null)
+                roomCode = room.Code;
+        }
+
+        if (!await _repository.IsRoomCodeValidAsync(roomCode))
+            throw new ArgumentException($"Room code '{roomCode}' is not valid.");
 
         var oldRoomCode = asset.CurrentRoomCode;
-        await _historyService.TrackChangeAsync(id, "CurrentRoomCode", oldRoomCode, newRoomCode, userId);
+        await _historyService.TrackChangeAsync(id, "CurrentRoomCode", oldRoomCode, roomCode, userId);
 
-        asset.CurrentRoomCode = newRoomCode;
+        asset.CurrentRoomCode = roomCode;
         var updated = await _repository.UpdateAsync(asset);
+        await InvalidateCachesAsync();
         return _mapper.Map<AssetDto>(updated);
     }
 
@@ -201,10 +271,44 @@ public class AssetService : IAssetService
 
         asset.RfidTagId = normalizedRfid;
         var updated = await _repository.UpdateAsync(asset);
+        await InvalidateCachesAsync();
         return _mapper.Map<AssetDto>(updated);
     }
 
-    public async Task<AssetDto> UpdateStatusAsync(Guid id, AssetStatus status, Guid userId, UserRole userRole = UserRole.Technicien)
+    public async Task<AssetDto> UpdateBleIdAsync(Guid id, string? bleId, Guid userId)
+    {
+        var asset = await _repository.GetByIdAsync(id);
+        if (asset == null)
+            throw new ArgumentException($"Asset with ID {id} not found.");
+
+        if (!string.IsNullOrEmpty(bleId) && !await _repository.IsBleIdUniqueAsync(bleId, id))
+            throw new InvalidOperationException($"BLE ID '{bleId}' already assigned to another asset. Clear it from the old asset first.");
+
+        var oldValue = asset.BleId;
+        await _historyService.TrackChangeAsync(id, "BleId", oldValue, bleId, userId);
+
+        asset.BleId = bleId;
+        var updated = await _repository.UpdateAsync(asset);
+        await InvalidateCachesAsync();
+        return _mapper.Map<AssetDto>(updated);
+    }
+
+    public async Task<AssetDto> UpdatePriceAsync(Guid id, string? price, Guid userId)
+    {
+        var asset = await _repository.GetByIdAsync(id);
+        if (asset == null)
+            throw new ArgumentException($"Asset with ID {id} not found.");
+
+        var oldValue = asset.Price;
+        await _historyService.TrackChangeAsync(id, "Price", oldValue, price, userId);
+
+        asset.Price = price;
+        var updated = await _repository.UpdateAsync(asset);
+        await InvalidateCachesAsync();
+        return _mapper.Map<AssetDto>(updated);
+    }
+
+    public async Task<AssetDto> UpdateStatusAsync(Guid id, AssetStatus status, Guid userId, UserRole userRole = UserRole.Technicien, string? note = null)
     {
         var asset = await _repository.GetByIdAsync(id);
         if (asset == null)
@@ -214,40 +318,90 @@ public class AssetService : IAssetService
             throw new UnauthorizedAccessException("Only Supervisors can set asset status to Retired.");
 
         var oldStatus = asset.Status;
-        await _historyService.TrackChangeAsync(id, "Status", oldStatus.ToString(), status.ToString(), userId);
+
+        // ── Status Entry Note Validation ─────────────────────────────────
+        // Note is required when transitioning TO Maintenance or CriticalIssue
+        var enteringMaintenance = status == AssetStatus.Maintenance;
+        var enteringCritical = status == AssetStatus.CriticalIssue;
+
+        if ((enteringMaintenance || enteringCritical) && string.IsNullOrWhiteSpace(note))
+            throw new ArgumentException(
+                $"A note describing the reason is required when changing status to {status}.");
+
+        // ── Note Lifecycle Logic ─────────────────────────────────────────
+        if (enteringMaintenance || enteringCritical)
+        {
+            // Entry note: describes what needs to be done / what is wrong
+            // Preserve previous exit note (it's a resolution record)
+            asset.StatusEntryNote = note?.Trim();
+        }
+        else
+        {
+            // Exiting Maintenance or CriticalIssue
+            var exitingMaintenance = oldStatus == AssetStatus.Maintenance && status != AssetStatus.Maintenance;
+            var exitingCritical = oldStatus == AssetStatus.CriticalIssue && status != AssetStatus.CriticalIssue;
+
+            if (exitingMaintenance || exitingCritical)
+            {
+                // Exit note: describes what was done / how resolved (optional)
+                if (!string.IsNullOrWhiteSpace(note))
+                    asset.StatusExitNote = note.Trim();
+
+                // Clear entry note since we're no longer in that state
+                asset.StatusEntryNote = null;
+            }
+            else
+            {
+                // Transition between non-Maintenance/CriticalIssue statuses — no notes
+                asset.StatusEntryNote = null;
+            }
+        }
+
+        var oldStatusStr = oldStatus.ToString();
+        await _historyService.TrackChangeAsync(id, "Status", oldStatusStr, status.ToString(), userId);
+
+        // Track note changes in history
+        if ((enteringMaintenance || enteringCritical) && !string.IsNullOrWhiteSpace(note))
+        {
+            await _historyService.TrackChangeAsync(id, "StatusEntryNote", null, note.Trim(), userId);
+        }
 
         asset.Status = status;
         var updated = await _repository.UpdateAsync(asset);
 
-        await CreateStatusChangeNotificationAsync(updated, status);
+        await InvalidateCachesAsync();
+        await CreateStatusChangeNotificationAsync(updated, status, note);
 
         return _mapper.Map<AssetDto>(updated);
     }
 
-    private async Task CreateStatusChangeNotificationAsync(AssetEntity asset, AssetStatus newStatus)
+    private async Task CreateStatusChangeNotificationAsync(AssetEntity asset, AssetStatus newStatus, string? note = null)
     {
-        var (type, eventType, title, message) = GetNotificationDetails(newStatus, asset.AssetTag);
-        await _notificationService.CreateNotificationAsync(
-            userId: Guid.Empty,
-            assetId: asset.Id,
-            type: type,
-            title: title,
-            message: message,
-            eventType: eventType
-        );
+        var (type, eventType, title, message, targetRole) = GetNotificationDetails(newStatus, asset.AssetTag, note);
+        var dto = new CreateNotificationDto
+        {
+            EventType = eventType,
+            Type = type,
+            Title = title,
+            Message = message,
+            AssetId = asset.Id,
+            TargetRole = targetRole
+        };
+        await _notificationService.CreateNotificationAsync(dto);
     }
 
-    private (NotificationType Type, NotificationEventType EventType, string Title, string Message) GetNotificationDetails(AssetStatus newStatus, string assetTag)
+    private (NotificationType Type, NotificationEventType EventType, string Title, string Message, UserRole TargetRole) GetNotificationDetails(AssetStatus newStatus, string assetTag, string? note = null)
     {
+        var noteSuffix = !string.IsNullOrWhiteSpace(note) ? $": {note}" : string.Empty;
         return newStatus switch
         {
-            AssetStatus.Active => (NotificationType.Info, NotificationEventType.EquipmentStatusOperational, "Asset Active", $"Asset {assetTag} is now Active"),
-            AssetStatus.InStock => (NotificationType.Info, NotificationEventType.EquipmentStatusInStock, "Asset In Stock", $"Asset {assetTag} is now In Stock"),
-            AssetStatus.Maintenance => (NotificationType.Warning, NotificationEventType.EquipmentStatusMaintenance, "Asset Maintenance", $"Asset {assetTag} scheduled for maintenance"),
-            AssetStatus.CriticalIssue => (NotificationType.Critical, NotificationEventType.EquipmentStatusCriticalIssue, "Asset Critical", $"Asset {assetTag} has a critical issue"),
-            AssetStatus.Lost => (NotificationType.Critical, NotificationEventType.EquipmentStatusLost, "Asset Lost", $"Asset {assetTag} marked as Lost"),
-            AssetStatus.Retired => (NotificationType.Warning, NotificationEventType.EquipmentStatusRetired, "Asset Retired", $"Asset {assetTag} has been retired"),
-            _ => (NotificationType.Info, NotificationEventType.EquipmentStatusOperational, "Status Changed", $"Asset {assetTag} status changed")
+            AssetStatus.CriticalIssue => (NotificationType.Critical, NotificationEventType.EquipmentStatusCriticalIssue, "Asset Critical", $"Asset {assetTag} has a critical issue{noteSuffix}", UserRole.Supervisor),
+            AssetStatus.Lost => (NotificationType.Critical, NotificationEventType.EquipmentStatusLost, "Asset Lost", $"Asset {assetTag} marked as Lost", UserRole.Supervisor),
+            AssetStatus.Retired => (NotificationType.Warning, NotificationEventType.EquipmentStatusRetired, "Asset Retired", $"Asset {assetTag} has been retired", UserRole.Supervisor),
+            AssetStatus.Maintenance => (NotificationType.Warning, NotificationEventType.EquipmentStatusMaintenance, "Asset Maintenance", $"Asset {assetTag} scheduled for maintenance{noteSuffix}", UserRole.Technicien),
+            AssetStatus.Active => (NotificationType.Info, NotificationEventType.EquipmentStatusOperational, "Asset Active", $"Asset {assetTag} is now Active{noteSuffix}", UserRole.Technicien),
+            AssetStatus.InStock => (NotificationType.Info, NotificationEventType.EquipmentStatusInStock, "Asset In Stock", $"Asset {assetTag} is now In Stock", UserRole.Technicien),
+            _ => (NotificationType.Info, NotificationEventType.EquipmentStatusOperational, "Status Changed", $"Asset {assetTag} status changed", UserRole.Technicien)
         };
     }
 
@@ -272,6 +426,21 @@ public class AssetService : IAssetService
             asset.LastMaintenanceDate = DateTime.UtcNow;
 
         var updated = await _repository.UpdateAsync(asset);
+        await InvalidateCachesAsync();
+
+        if (dueDate.HasValue)
+        {
+            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            {
+                EventType = NotificationEventType.MaintenanceScheduled,
+                Type = NotificationType.Info,
+                Title = "Maintenance Scheduled",
+                Message = $"Maintenance scheduled for {updated.Name} ({updated.AssetTag}) on {dueDate.Value:yyyy-MM-dd}",
+                AssetId = updated.Id,
+                TargetRole = UserRole.Technicien
+            });
+        }
+
         return _mapper.Map<AssetDto>(updated);
     }
 
@@ -290,6 +459,17 @@ public class AssetService : IAssetService
         await _historyService.TrackChangeAsync(asset.Id, "DeletedAt", null, DateTime.UtcNow.ToString(), userId);
 
         await _repository.DeleteAsync(asset.Id);
+        await InvalidateCachesAsync();
+
+        await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+        {
+            EventType = NotificationEventType.EquipmentCrudDeleted,
+            Type = NotificationType.Warning,
+            Title = "Asset Deleted",
+            Message = $"Asset {asset.AssetTag} ({asset.Name}) has been permanently deleted",
+            AssetId = asset.Id,
+            TargetRole = UserRole.Supervisor
+        });
     }
 
     public async Task<byte[]> GenerateQrCodeAsync(Guid id)
@@ -303,6 +483,18 @@ public class AssetService : IAssetService
         using var qrCode = new PngByteQRCode(qrCodeData);
         var qrBytes = qrCode.GetGraphic(20);
         return qrBytes;
+    }
+
+    public async Task<byte[]> GenerateBarcodeAsync(Guid id, int width, int height)
+    {
+        var asset = await _repository.GetByIdAsync(id);
+        if (asset == null)
+            throw new ArgumentException($"Asset with ID {id} not found.");
+
+        using var barcode = new Barcode();
+        barcode.IncludeLabel = true;
+        barcode.Encode(BarcodeStandard.Type.Code128, asset.AssetTag, width, height);
+        return barcode.GetImageData(SaveTypes.Png);
     }
 
     public async Task<IEnumerable<AssetReconciliationDto>> GetReconciliationAsync()

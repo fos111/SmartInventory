@@ -60,6 +60,13 @@ public class AuthRepository : IAuthRepository
         await _context.SaveChangesAsync(ct);
     }
 
+    public async Task<List<User>> GetAllAsync(CancellationToken ct = default)
+    {
+        return await _context.Users
+            .OrderBy(u => u.Username)
+            .ToListAsync(ct);
+    }
+
     public async Task<List<User>> GetUsersByRoleAsync(UserRole role, CancellationToken ct = default)
     {
         return await _context.Users

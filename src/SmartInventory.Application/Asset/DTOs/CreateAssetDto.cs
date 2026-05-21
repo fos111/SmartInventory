@@ -35,7 +35,15 @@ public class CreateAssetDto
     [MaxLength(20)]
     public string CurrentRoomCode { get; set; } = string.Empty;
 
-    public DateTime? InstallDate { get; set; }
+    [MaxLength(500)]
+    public string? PhotoPath { get; set; }
 
+    [MaxLength(50)]
+    public string? Price { get; set; }
+
+    [MaxLength(100)]
+    public string? BleId { get; set; }
+
+    public DateTime? InstallDate { get; set; }
     public DateTime? LastServiceDate { get; set; }
 }

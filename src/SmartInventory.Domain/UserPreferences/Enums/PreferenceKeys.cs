@@ -54,7 +54,11 @@ public static class PreferenceKeys
     public const string AuthLoginSuccess = "pref:event:auth:login_success";
     public const string AuthLoginError = "pref:event:auth:login_error";
     public const string AuthRegisterError = "pref:event:auth:register_error";
+    public const string AuthRegisterSuccess = "pref:event:auth:register_success";
     public const string AuthEmailConfirmed = "pref:event:auth:email_confirmed";
+    public const string AuthUserApproved = "pref:event:auth:user_approved";
+    public const string AuthUserRejected = "pref:event:auth:user_rejected";
+    public const string AuthReEvaluationRequested = "pref:event:auth:re_evaluation_requested";
 
     // Settings
     public const string SettingsProfileUpdated = "pref:event:settings:profile_updated";

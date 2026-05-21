@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.SignalR;
 using SmartInventory.Application.Notification.DTOs;
 using SmartInventory.Application.Notification.Interfaces;
-using SmartInventory.Domain.Notification.Enums;
 
 namespace SmartInventory.Api.Hubs;
 
@@ -41,10 +40,5 @@ public class NotificationsHub : Hub
     public async Task<int> GetUnreadCount(string userId)
     {
         return await _notificationService.GetUnreadCountAsync(Guid.Parse(userId));
-    }
-
-    public static async Task BroadcastNotification(HubCallerContext context, IHubContext<NotificationsHub> hubContext, Guid userId, NotificationDto notification)
-    {
-        await hubContext.Clients.Group(userId.ToString()).SendAsync("ReceiveNotification", notification);
     }
 }

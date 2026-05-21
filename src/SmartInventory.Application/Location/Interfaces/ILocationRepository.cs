@@ -19,8 +19,10 @@ namespace SmartInventory.Application.Location.Interfaces
         Task<Building?> GetBuildingByIdAsync(Guid id);
         Task<bool> IsBuildingCodeUniqueAsync(string code);
         Task<Zone?> GetZoneByRoomCodeAsync(string roomCode);
+        Task<Zone?> GetZoneByCodeAsync(string code);
 
         Task<Room?> GetRoomByIdAsync(Guid id);
+        Task<List<Room>> GetRoomsByIdsAsync(List<Guid> roomIds);
         Task<RoomGeometry?> GetRoomGeometryByRoomIdAsync(Guid roomId);
         Task<RoomGeometry> UpsertRoomGeometryAsync(RoomGeometry geometry);
         Task DeleteRoomAsync(Guid roomId);

@@ -1,7 +1,10 @@
 using SmartInventory.Application.Auth.DTOs.Responses;
 using SmartInventory.Application.Auth.Interfaces;
+using SmartInventory.Application.Notification.DTOs;
+using SmartInventory.Application.Notification.Interfaces;
 using SmartInventory.Domain.Auth.Entities;
 using SmartInventory.Domain.Auth.Enums;
+using SmartInventory.Domain.Notification.Enums;
 
 namespace SmartInventory.Application.Auth.Services;
 
@@ -9,11 +12,16 @@ public class SupervisorService : ISupervisorService
 {
     private readonly IAuthRepository _authRepository;
     private readonly IEmailSender _emailSender;
+    private readonly INotificationService _notificationService;
 
-    public SupervisorService(IAuthRepository authRepository, IEmailSender emailSender)
+    public SupervisorService(
+        IAuthRepository authRepository,
+        IEmailSender emailSender,
+        INotificationService notificationService)
     {
         _authRepository = authRepository;
         _emailSender = emailSender;
+        _notificationService = notificationService;
     }
 
     public async Task<List<UserListResponse>> GetPendingUsersAsync(CancellationToken ct = default)
@@ -34,7 +42,7 @@ public class SupervisorService : ISupervisorService
 
     public async Task<bool> ApproveUserAsync(Guid userId, UserRole role, Guid supervisorId, CancellationToken ct = default)
     {
-        if (role != UserRole.Technicien && role != UserRole.Gestionnaire)
+        if (role != UserRole.Technicien && role != UserRole.Gestionnaire && role != UserRole.Supervisor)
             return false;
 
         var user = await _authRepository.GetByIdAsync(userId, ct);
@@ -47,7 +55,16 @@ public class SupervisorService : ISupervisorService
         user.ApprovedAt = DateTime.UtcNow;
         await _authRepository.UpdateAsync(user, ct);
 
-        var roleLabel = role == UserRole.Gestionnaire ? "Gestionnaire" : "Technician";
+        await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+        {
+            EventType = NotificationEventType.AuthUserApproved,
+            Type = NotificationType.Info,
+            Title = "User Approved",
+            Message = $"{user.Username} ({user.Email}) was approved as {role}",
+            TargetRole = UserRole.Supervisor
+        }, ct);
+
+        var roleLabel = role == UserRole.Gestionnaire ? "Gestionnaire" : role == UserRole.Supervisor ? "Supervisor" : "Technician";
         var htmlBody = $@"
             <h2>Account Approved</h2>
             <p>Congratulations! Your {roleLabel} account has been approved. You can now log in with full access.</p>
@@ -66,6 +83,15 @@ public class SupervisorService : ISupervisorService
         user.Status = AccountStatus.Rejected;
         user.RejectionReason = reason;
         await _authRepository.UpdateAsync(user, ct);
+
+        await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+        {
+            EventType = NotificationEventType.AuthUserRejected,
+            Type = NotificationType.Warning,
+            Title = "User Rejected",
+            Message = $"{user.Username} ({user.Email}) was rejected{(string.IsNullOrEmpty(reason) ? "" : $": {reason}")}",
+            TargetRole = UserRole.Supervisor
+        }, ct);
 
         var htmlBody = $@"
             <h2>Account Rejected</h2>

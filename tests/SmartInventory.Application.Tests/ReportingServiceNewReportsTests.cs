@@ -33,8 +33,31 @@ public class ReportingServiceNewReportsTests
         _activityLogServiceMock = new Mock<IActivityLogService>();
         _authRepositoryMock = new Mock<IAuthRepository>();
         _locationRepositoryMock = new Mock<ILocationRepository>();
+
         _locationRepositoryMock.Setup(r => r.GetFullHierarchyAsync())
             .ReturnsAsync(new List<Site>());
+
+        // Set up all new aggregation methods to return empty lists by default
+        // to prevent ArgumentNullException on unmocked methods.
+        _assetRepositoryMock.Setup(r => r.GetStatusCountsAsync())
+            .ReturnsAsync(new List<StatusCountDto>());
+        _assetRepositoryMock.Setup(r => r.GetCategoryCountsAsync())
+            .ReturnsAsync(new List<CategoryCountDto>());
+        _assetRepositoryMock.Setup(r => r.GetLocationCountsAsync())
+            .ReturnsAsync(new List<LocationCountDto>());
+        _assetRepositoryMock.Setup(r => r.GetRoomAssetCountsAsync())
+            .ReturnsAsync(new List<RoomAssetCountDto>());
+        _assetRepositoryMock.Setup(r => r.GetRoomCategoriesAsync())
+            .ReturnsAsync(new List<RoomCategoryDto>());
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(new List<AssetEntity>());
+        _assetRepositoryMock.Setup(r => r.GetAssetsWithMaintenanceAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+            .ReturnsAsync(new List<AssetEntity>());
+        _assetRepositoryMock.Setup(r => r.GetAssetsByStatusAsync(It.IsAny<ICollection<AssetStatus>>()))
+            .ReturnsAsync(new List<AssetEntity>());
+        _assetRepositoryMock.Setup(r => r.GetCategoryStatusBreakdownAsync())
+            .ReturnsAsync(new List<CategoryStatusBreakdownDto>());
+
         _service = new ReportingService(
             _assetRepositoryMock.Object,
             _historyServiceMock.Object,
@@ -143,8 +166,10 @@ public class ReportingServiceNewReportsTests
     public async Task GetMaintenanceForecast_ReturnsAssetsDueWithinDays()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        // Return only AST-001 (due ~15 days out) — the only asset in a 30-day window.
+        var forecastAssets = assets.Where(a => a.AssetTag == "AST-001").ToList();
+        _assetRepositoryMock.Setup(r => r.GetAssetsWithMaintenanceAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+            .ReturnsAsync(forecastAssets);
 
         var result = await _service.GetMaintenanceForecastAsync(30);
 
@@ -157,20 +182,24 @@ public class ReportingServiceNewReportsTests
     public async Task GetMaintenanceForecast_AssetsOutsideWindow_AreExcluded()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        // Return only AST-001 (due ~15 days) — AST-006 (90 days out) should not appear.
+        var forecastAssets = assets.Where(a => a.AssetTag == "AST-001").ToList();
+        _assetRepositoryMock.Setup(r => r.GetAssetsWithMaintenanceAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+            .ReturnsAsync(forecastAssets);
 
         var result = await _service.GetMaintenanceForecastAsync(30);
 
-        result.Any(a => a.AssetTag == "AST-006").Should().BeFalse(); // 90 days out
+        result.Any(a => a.AssetTag == "AST-006").Should().BeFalse();
     }
 
     [Fact]
     public async Task GetOverdueMaintenance_ReturnsPastDueAssets()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        // AST-003 (due 5 days ago) and AST-008 (due 60 days ago) are overdue.
+        var overdueAssets = assets.Where(a => a.AssetTag is "AST-003" or "AST-008").ToList();
+        _assetRepositoryMock.Setup(r => r.GetAssetsWithMaintenanceAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+            .ReturnsAsync(overdueAssets);
 
         var result = await _service.GetOverdueMaintenanceAsync();
 
@@ -182,22 +211,29 @@ public class ReportingServiceNewReportsTests
     public async Task GetCriticalIssues_ReturnsCriticalAndLostAssets()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        var expected = assets.Where(a => a.Status == AssetStatus.CriticalIssue || a.Status == AssetStatus.Lost).ToList();
+
+        _assetRepositoryMock.Setup(r => r.GetAssetsByStatusAsync(It.Is<ICollection<AssetStatus>>(
+            s => s.Contains(AssetStatus.CriticalIssue) && s.Contains(AssetStatus.Lost))))
+            .ReturnsAsync(expected);
 
         var result = await _service.GetCriticalIssuesAsync();
 
         result.Should().HaveCount(2);
-        result.Any(a => a.AssetTag == "AST-004").Should().BeTrue(); // CriticalIssue
-        result.Any(a => a.AssetTag == "AST-005").Should().BeTrue(); // Lost
+        result.Any(a => a.AssetTag == "AST-004").Should().BeTrue();
+        result.Any(a => a.AssetTag == "AST-005").Should().BeTrue();
     }
 
     [Fact]
     public async Task GetStatusSummary_ReturnsCountsForAllStatuses()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        var statusCounts = assets.GroupBy(a => a.Status)
+            .Select(g => new StatusCountDto { Status = g.Key, Count = g.Count() })
+            .ToList();
+
+        _assetRepositoryMock.Setup(r => r.GetStatusCountsAsync())
+            .ReturnsAsync(statusCounts);
 
         var result = await _service.GetStatusSummaryAsync();
 
@@ -211,8 +247,13 @@ public class ReportingServiceNewReportsTests
     public async Task GetZoneInventory_ReturnsAllRoomsWithCounts()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        var roomCounts = assets.Where(a => !string.IsNullOrEmpty(a.CurrentRoomCode))
+            .GroupBy(a => new { a.CurrentRoomCode, a.Status })
+            .Select(g => new RoomAssetCountDto { RoomCode = g.Key.CurrentRoomCode, Status = g.Key.Status, Count = g.Count() })
+            .ToList();
+
+        _assetRepositoryMock.Setup(r => r.GetRoomAssetCountsAsync())
+            .ReturnsAsync(roomCounts);
         SetupLocationHierarchy();
 
         var result = await _service.GetZoneInventoryAsync();
@@ -225,8 +266,20 @@ public class ReportingServiceNewReportsTests
     public async Task GetBuildingStocktake_ReturnsAllBuildings()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        var roomCounts = assets.Where(a => !string.IsNullOrEmpty(a.CurrentRoomCode))
+            .GroupBy(a => new { a.CurrentRoomCode, a.Status })
+            .Select(g => new RoomAssetCountDto { RoomCode = g.Key.CurrentRoomCode, Status = g.Key.Status, Count = g.Count() })
+            .ToList();
+        var roomCategories = assets.Where(a => !string.IsNullOrEmpty(a.CurrentRoomCode))
+            .Select(a => new { a.CurrentRoomCode, a.Category })
+            .Distinct()
+            .Select(x => new RoomCategoryDto { RoomCode = x.CurrentRoomCode, Category = x.Category })
+            .ToList();
+
+        _assetRepositoryMock.Setup(r => r.GetRoomAssetCountsAsync())
+            .ReturnsAsync(roomCounts);
+        _assetRepositoryMock.Setup(r => r.GetRoomCategoriesAsync())
+            .ReturnsAsync(roomCategories);
         SetupLocationHierarchy();
 
         var result = await _service.GetBuildingStocktakeAsync();
@@ -239,8 +292,13 @@ public class ReportingServiceNewReportsTests
     public async Task GetEmptyRooms_ReturnsRoomsBelowThreshold()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        var roomCounts = assets.Where(a => !string.IsNullOrEmpty(a.CurrentRoomCode))
+            .GroupBy(a => new { a.CurrentRoomCode, a.Status })
+            .Select(g => new RoomAssetCountDto { RoomCode = g.Key.CurrentRoomCode, Status = g.Key.Status, Count = g.Count() })
+            .ToList();
+
+        _assetRepositoryMock.Setup(r => r.GetRoomAssetCountsAsync())
+            .ReturnsAsync(roomCounts);
         SetupLocationHierarchy();
 
         var result = await _service.GetEmptyRoomsAsync(1);
@@ -253,7 +311,6 @@ public class ReportingServiceNewReportsTests
     public async Task GetLocationDiscrepancies_ReturnsMismatchedAssets()
     {
         var assets = CreateTestAssets();
-        // Give one asset a discrepancy
         assets[0].DetectedRoomCode = "LI2";
         _assetRepositoryMock.Setup(r => r.GetDiscrepantAssetsAsync())
             .ReturnsAsync(new List<AssetEntity> { assets[0] });
@@ -268,8 +325,18 @@ public class ReportingServiceNewReportsTests
     public async Task GetCategoryStocktake_ReturnsGroupedCounts()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        var breakdown = assets
+            .GroupBy(a => new { a.Category, a.Status })
+            .Select(g => new CategoryStatusBreakdownDto
+            {
+                Category = g.Key.Category,
+                Status = g.Key.Status,
+                Count = g.Count()
+            })
+            .ToList();
+
+        _assetRepositoryMock.Setup(r => r.GetCategoryStatusBreakdownAsync())
+            .ReturnsAsync(breakdown);
 
         var result = await _service.GetCategoryStocktakeAsync();
 
@@ -283,8 +350,10 @@ public class ReportingServiceNewReportsTests
     public async Task GetRoomAudit_ReturnsNullForUnknownRoom()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.Is<Asset.Filters.AssetFilter>(
+            f => f.RoomCode == "NONEXISTENT")))
+            .ReturnsAsync(new List<AssetEntity>());
 
         var result = await _service.GetRoomAuditAsync("NONEXISTENT");
 
@@ -295,8 +364,11 @@ public class ReportingServiceNewReportsTests
     public async Task GetRoomAudit_ReturnsAssetsInRoom()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        var li1Assets = assets.Where(a => a.CurrentRoomCode == "LI1").ToList();
+
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.Is<Asset.Filters.AssetFilter>(
+            f => f.RoomCode == "LI1")))
+            .ReturnsAsync(li1Assets);
         SetupLocationHierarchy();
 
         var result = await _service.GetRoomAuditAsync("LI1");
@@ -310,8 +382,13 @@ public class ReportingServiceNewReportsTests
     public async Task GetDepartmentReport_ReturnsZoneKPIs()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        var roomCounts = assets.Where(a => !string.IsNullOrEmpty(a.CurrentRoomCode))
+            .GroupBy(a => new { a.CurrentRoomCode, a.Status })
+            .Select(g => new RoomAssetCountDto { RoomCode = g.Key.CurrentRoomCode, Status = g.Key.Status, Count = g.Count() })
+            .ToList();
+
+        _assetRepositoryMock.Setup(r => r.GetRoomAssetCountsAsync())
+            .ReturnsAsync(roomCounts);
         SetupLocationHierarchy();
 
         var result = await _service.GetDepartmentReportsAsync();

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
 using SmartInventory.Application.Asset.DTOs;
+using SmartInventory.Application.Asset.DTOs.Reports;
 using SmartInventory.Application.Asset.Interfaces;
 using SmartInventory.Application.Asset.Services;
 using SmartInventory.Application.Auth.Interfaces;
@@ -32,6 +33,21 @@ public class ReportingServiceTests : ApplicationTestBase
         _historyServiceMock = new Mock<IAssetHistoryService>();
         _activityLogServiceMock = new Mock<IActivityLogService>();
         _authRepositoryMock = new Mock<IAuthRepository>();
+
+        // Default empty-list setups for new aggregation methods.
+        _assetRepositoryMock.Setup(r => r.GetCategoryCountsAsync())
+            .ReturnsAsync(new List<CategoryCountDto>());
+        _assetRepositoryMock.Setup(r => r.GetStatusCountsAsync())
+            .ReturnsAsync(new List<StatusCountDto>());
+        _assetRepositoryMock.Setup(r => r.GetLocationCountsAsync())
+            .ReturnsAsync(new List<LocationCountDto>());
+        _assetRepositoryMock.Setup(r => r.GetRoomAssetCountsAsync())
+            .ReturnsAsync(new List<RoomAssetCountDto>());
+        _assetRepositoryMock.Setup(r => r.GetRoomCategoriesAsync())
+            .ReturnsAsync(new List<RoomCategoryDto>());
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(new List<AssetEntity>());
+
         _service = new ReportingService(
             _assetRepositoryMock.Object,
             _historyServiceMock.Object,
@@ -56,8 +72,9 @@ public class ReportingServiceTests : ApplicationTestBase
     public async Task GetInventorySummary_ByCategory_ReturnsCorrectGroups()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        _assetRepositoryMock.Setup(r => r.GetCategoryCountsAsync())
+            .ReturnsAsync(assets.GroupBy(a => a.Category)
+                .Select(g => new CategoryCountDto { Category = g.Key, Count = g.Count() }).ToList());
 
         var result = await _service.GetInventorySummaryAsync("category", null, UserRole.Supervisor);
 
@@ -69,8 +86,9 @@ public class ReportingServiceTests : ApplicationTestBase
     public async Task GetInventorySummary_ByStatus_ReturnsCorrectGroups()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        _assetRepositoryMock.Setup(r => r.GetStatusCountsAsync())
+            .ReturnsAsync(assets.GroupBy(a => a.Status)
+                .Select(g => new StatusCountDto { Status = g.Key, Count = g.Count() }).ToList());
 
         var result = await _service.GetInventorySummaryAsync("status", null, UserRole.Supervisor);
 
@@ -83,8 +101,10 @@ public class ReportingServiceTests : ApplicationTestBase
     public async Task GetInventorySummary_ByLocation_ReturnsCorrectGroups()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        _assetRepositoryMock.Setup(r => r.GetLocationCountsAsync())
+            .ReturnsAsync(assets.Where(a => !string.IsNullOrEmpty(a.CurrentRoomCode))
+                .GroupBy(a => a.CurrentRoomCode)
+                .Select(g => new LocationCountDto { RoomCode = g.Key, Count = g.Count() }).ToList());
 
         var result = await _service.GetInventorySummaryAsync("location", null, UserRole.Supervisor);
 
@@ -94,9 +114,8 @@ public class ReportingServiceTests : ApplicationTestBase
     [Fact]
     public async Task GetInventorySummary_InvalidGroupBy_ThrowsArgumentException()
     {
-        var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        _assetRepositoryMock.Setup(r => r.GetCategoryCountsAsync())
+            .ReturnsAsync(new List<CategoryCountDto>());
 
         var act = () => _service.GetInventorySummaryAsync("invalid", null, UserRole.Supervisor);
 
@@ -145,8 +164,8 @@ public class ReportingServiceTests : ApplicationTestBase
             new() { Id = Guid.NewGuid(), AssetId = assetId, PropertyChanged = "Status", OldValue = "Maintenance", NewValue = "Active", ChangedAt = DateTime.UtcNow.AddDays(-1) }
         };
 
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(assets);
         _historyServiceMock.Setup(h => h.GetAllHistoryAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
             .ReturnsAsync(history);
 
@@ -159,8 +178,13 @@ public class ReportingServiceTests : ApplicationTestBase
     public async Task GetLocationReport_ReturnsAssetsPerLocation()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        _assetRepositoryMock.Setup(r => r.GetRoomAssetCountsAsync())
+            .ReturnsAsync(assets.Where(a => !string.IsNullOrEmpty(a.CurrentRoomCode))
+                .GroupBy(a => new { a.CurrentRoomCode, a.Status })
+                .Select(g => new RoomAssetCountDto { RoomCode = g.Key.CurrentRoomCode, Status = g.Key.Status, Count = g.Count() })
+                .ToList());
+        _assetRepositoryMock.Setup(r => r.GetRoomCategoriesAsync())
+            .ReturnsAsync(new List<RoomCategoryDto>());
 
         var result = await _service.GetLocationReportAsync(null);
 
@@ -171,8 +195,13 @@ public class ReportingServiceTests : ApplicationTestBase
     public async Task GetLocationReport_LI1_HasCorrectCounts()
     {
         var assets = CreateTestAssets();
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        _assetRepositoryMock.Setup(r => r.GetRoomAssetCountsAsync())
+            .ReturnsAsync(assets.Where(a => !string.IsNullOrEmpty(a.CurrentRoomCode))
+                .GroupBy(a => new { a.CurrentRoomCode, a.Status })
+                .Select(g => new RoomAssetCountDto { RoomCode = g.Key.CurrentRoomCode, Status = g.Key.Status, Count = g.Count() })
+                .ToList());
+        _assetRepositoryMock.Setup(r => r.GetRoomCategoriesAsync())
+            .ReturnsAsync(new List<RoomCategoryDto>());
 
         var result = await _service.GetLocationReportAsync(null);
         var li1Result = result.FirstOrDefault(r => r.RoomCode == "LI1");
@@ -197,6 +226,10 @@ public class ReportingActivityFeedTests : ApplicationTestBase
         _historyServiceMock = new Mock<IAssetHistoryService>();
         _activityLogServiceMock = new Mock<IActivityLogService>();
         _authRepositoryMock = new Mock<IAuthRepository>();
+
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(new List<AssetEntity>());
+
         _service = new ReportingService(
             _assetRepositoryMock.Object,
             _historyServiceMock.Object,
@@ -239,8 +272,8 @@ public class ReportingActivityFeedTests : ApplicationTestBase
         var assetHistory = CreateAssetHistory(assets, userId);
         var facilityActivity = CreateFacilityActivity(userId);
 
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(assets);
         _historyServiceMock.Setup(h => h.GetAllHistoryAsync(null, null)).ReturnsAsync(assetHistory);
         _activityLogServiceMock.Setup(a => a.GetAllActivityLogsAsync(null, null)).ReturnsAsync(facilityActivity);
         _authRepositoryMock.Setup(a => a.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
@@ -260,8 +293,8 @@ public class ReportingActivityFeedTests : ApplicationTestBase
         var from = DateTime.UtcNow.AddDays(-5);
         var to = DateTime.UtcNow;
 
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(assets);
         _historyServiceMock.Setup(h => h.GetAllHistoryAsync(from, to)).ReturnsAsync(new List<Domain.Asset.Entities.AssetHistory>());
         _activityLogServiceMock.Setup(a => a.GetAllActivityLogsAsync(from, to)).ReturnsAsync(new List<ActivityLogDto>());
 
@@ -286,8 +319,8 @@ public class ReportingActivityFeedTests : ApplicationTestBase
             new() { Id = Guid.NewGuid(), Action = "Created", EntityType = "Room", ChangedBy = user2Id, ChangedAt = DateTime.UtcNow }
         };
 
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(assets);
         _historyServiceMock.Setup(h => h.GetAllHistoryAsync(null, null)).ReturnsAsync(assetHistory);
         _activityLogServiceMock.Setup(a => a.GetAllActivityLogsAsync(null, null)).ReturnsAsync(facilityActivity);
         _authRepositoryMock.Setup(a => a.GetByIdAsync(user1Id, It.IsAny<CancellationToken>()))
@@ -312,8 +345,8 @@ public class ReportingActivityFeedTests : ApplicationTestBase
             new() { Id = Guid.NewGuid(), Action = "Created", EntityType = "Room", ChangedBy = unknownUserId, ChangedAt = DateTime.UtcNow }
         };
 
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(assets);
         _historyServiceMock.Setup(h => h.GetAllHistoryAsync(null, null)).ReturnsAsync(new List<Domain.Asset.Entities.AssetHistory>());
         _activityLogServiceMock.Setup(a => a.GetAllActivityLogsAsync(null, null)).ReturnsAsync(facilityActivity);
         _authRepositoryMock.Setup(a => a.GetByIdAsync(unknownUserId, It.IsAny<CancellationToken>()))
@@ -336,8 +369,8 @@ public class ReportingActivityFeedTests : ApplicationTestBase
             new() { Id = Guid.NewGuid(), Action = "Created", EntityType = "Room", ChangedBy = userId, ChangedAt = DateTime.UtcNow }
         };
 
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(assets);
         _historyServiceMock.Setup(h => h.GetAllHistoryAsync(null, null)).ReturnsAsync(assetHistory);
         _activityLogServiceMock.Setup(a => a.GetAllActivityLogsAsync(null, null)).ReturnsAsync(facilityActivity);
         _authRepositoryMock.Setup(a => a.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
@@ -365,8 +398,8 @@ public class ReportingActivityFeedTests : ApplicationTestBase
             new() { Id = Guid.NewGuid(), Action = "Created", EntityType = "Room", ChangedBy = otherUserId, ChangedAt = DateTime.UtcNow }
         };
 
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(assets);
         _historyServiceMock.Setup(h => h.GetAllHistoryAsync(null, null)).ReturnsAsync(assetHistory);
         _activityLogServiceMock.Setup(a => a.GetAllActivityLogsAsync(null, null)).ReturnsAsync(facilityActivity);
         _authRepositoryMock.Setup(a => a.GetByIdAsync(targetUserId, It.IsAny<CancellationToken>()))
@@ -399,8 +432,8 @@ public class ReportingActivityFeedTests : ApplicationTestBase
             ChangedBy = userId, ChangedAt = DateTime.UtcNow
         };
 
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(assets);
         _historyServiceMock.Setup(h => h.GetAllHistoryAsync(null, null)).ReturnsAsync(new List<Domain.Asset.Entities.AssetHistory> { oldest, newest });
         _activityLogServiceMock.Setup(a => a.GetAllActivityLogsAsync(null, null)).ReturnsAsync(new List<ActivityLogDto> { middle });
         _authRepositoryMock.Setup(a => a.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
@@ -419,8 +452,8 @@ public class ReportingActivityFeedTests : ApplicationTestBase
     {
         var assets = CreateTestAssets();
 
-        _assetRepositoryMock.Setup(r => r.GetAssetsAsync(It.IsAny<Asset.Filters.AssetFilter>(), 1, int.MaxValue))
-            .ReturnsAsync((assets, assets.Count));
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(assets);
         _historyServiceMock.Setup(h => h.GetAllHistoryAsync(null, null)).ReturnsAsync(new List<Domain.Asset.Entities.AssetHistory>());
         _activityLogServiceMock.Setup(a => a.GetAllActivityLogsAsync(null, null)).ReturnsAsync(new List<ActivityLogDto>());
 

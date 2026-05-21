@@ -37,10 +37,12 @@ public class AssetHistoryRepository : IAssetHistoryRepository
     {
         var query = _context.AssetHistories.AsQueryable();
 
+        // Ensure UTC Kind — query-string DateTimes come as Unspecified,
+        // which Npgsql rejects for 'timestamp with time zone' columns.
         if (from.HasValue)
-            query = query.Where(h => h.ChangedAt >= from.Value);
+            query = query.Where(h => h.ChangedAt >= DateTime.SpecifyKind(from.Value, DateTimeKind.Utc));
         if (to.HasValue)
-            query = query.Where(h => h.ChangedAt <= to.Value);
+            query = query.Where(h => h.ChangedAt <= DateTime.SpecifyKind(to.Value, DateTimeKind.Utc));
 
         return await query
             .OrderByDescending(h => h.ChangedAt)

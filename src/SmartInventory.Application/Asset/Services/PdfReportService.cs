@@ -8,6 +8,7 @@ using QuestPDF.Infrastructure;
 using QuestPDF.Drawing.Exceptions;
 using SmartInventory.Application.Asset.DTOs.Reports;
 using SmartInventory.Application.Asset.Interfaces;
+using SmartInventory.Application.Mobile.Reports.DTOs;
 
 namespace SmartInventory.Application.Asset.Services;
 
@@ -946,6 +947,108 @@ public class PdfReportService : IPdfReportService
                                         card.Item().AlignCenter().Text("In Stock").FontSize(7).FontColor(Slate600);
                                     });
                             });
+                        });
+                    }
+                });
+            });
+        });
+
+        return ToPdf(document);
+    }
+
+    public byte[] GenerateRoomJournal(RoomJournalDto data)
+    {
+        var document = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4.Landscape());
+                page.Margin(25);
+
+                ComposeDefaultHeader(page, "Room Journal", "Industrial Asset Management");
+                ComposeDefaultFooter(page, 0);
+
+                page.Content().PaddingTop(10).Column(col =>
+                {
+                    col.Spacing(8);
+
+                    col.Item().Row(row =>
+                    {
+                        row.RelativeItem().Column(c =>
+                        {
+                            c.Item().Text($"Room: {data.RoomCode}").FontSize(14).Bold().FontColor(Slate900);
+                            c.Item().Text($"{data.RoomName}").FontSize(10).FontColor(Slate600);
+                            if (!string.IsNullOrEmpty(data.DepartmentName))
+                                c.Item().Text($"Department: {data.DepartmentName}").FontSize(9).FontColor(Slate600);
+                        });
+
+                        row.RelativeItem().AlignRight().Column(c =>
+                        {
+                            if (data.FromDate.HasValue)
+                                c.Item().Text($"From: {data.FromDate:yyyy-MM-dd}").FontSize(8).FontColor(Slate400);
+                            if (data.ToDate.HasValue)
+                                c.Item().Text($"To: {data.ToDate:yyyy-MM-dd}").FontSize(8).FontColor(Slate400);
+                        });
+                    });
+
+                    col.Item().PaddingTop(4).LineHorizontal(0.5f).LineColor(Slate400);
+
+                    col.Item().Text($"Total Entries: {data.Entries.Count}").FontSize(10).Bold().FontColor(Slate900);
+
+                    if (data.Entries.Count > 0)
+                    {
+                        col.Item().Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                columns.RelativeColumn(1);
+                                columns.RelativeColumn(2);
+                                columns.RelativeColumn(1);
+                                columns.RelativeColumn(1);
+                                columns.RelativeColumn(1);
+                                columns.RelativeColumn(1);
+                                columns.RelativeColumn(2);
+                            });
+
+                            table.Header(header =>
+                            {
+                                header.Cell().Background(HeaderBg).Padding(4)
+                                    .Text("Asset Tag").FontSize(8).Bold().FontColor(Colors.White);
+                                header.Cell().Background(HeaderBg).Padding(4)
+                                    .Text("Asset Name").FontSize(8).Bold().FontColor(Colors.White);
+                                header.Cell().Background(HeaderBg).Padding(4)
+                                    .Text("Action").FontSize(8).Bold().FontColor(Colors.White);
+                                header.Cell().Background(HeaderBg).Padding(4)
+                                    .Text("From").FontSize(8).Bold().FontColor(Colors.White);
+                                header.Cell().Background(HeaderBg).Padding(4)
+                                    .Text("To").FontSize(8).Bold().FontColor(Colors.White);
+                                header.Cell().Background(HeaderBg).Padding(4)
+                                    .Text("By").FontSize(8).Bold().FontColor(Colors.White);
+                                header.Cell().Background(HeaderBg).Padding(4)
+                                    .Text("Date").FontSize(8).Bold().FontColor(Colors.White);
+                            });
+
+                            foreach (var entry in data.Entries)
+                            {
+                                var bgColor = (data.Entries.IndexOf(entry) % 2 == 0)
+                                    ? Colors.White
+                                    : Color.FromHex("#f8fafc");
+
+                                table.Cell().Background(bgColor).Padding(3)
+                                    .Text(entry.AssetTag).FontSize(7).FontColor(Slate900);
+                                table.Cell().Background(bgColor).Padding(3)
+                                    .Text(entry.AssetName).FontSize(7).FontColor(Slate600);
+                                table.Cell().Background(bgColor).Padding(3)
+                                    .Text(entry.Action).FontSize(7).FontColor(Slate600);
+                                table.Cell().Background(bgColor).Padding(3)
+                                    .Text(entry.OldValue ?? "-").FontSize(7).FontColor(Slate600);
+                                table.Cell().Background(bgColor).Padding(3)
+                                    .Text(entry.NewValue ?? "-").FontSize(7).FontColor(Slate600);
+                                table.Cell().Background(bgColor).Padding(3)
+                                    .Text(entry.ChangedByName).FontSize(7).FontColor(Slate600);
+                                table.Cell().Background(bgColor).Padding(3)
+                                    .Text(entry.ChangedAt.ToString("yyyy-MM-dd HH:mm")).FontSize(7).FontColor(Slate600);
+                            }
                         });
                     }
                 });

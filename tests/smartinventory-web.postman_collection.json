@@ -1,0 +1,1847 @@
+{
+  "info": {
+    "name": "SmartInventory Web API \u2014 Full",
+    "description": "Complete API collection for the SmartInventory Web Frontend. Covers all non-mobile controllers: Auth, Assets, Locations, Categories, Reports, Notifications, User Preferences, and Health.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 \u2014 Health (no auth)",
+      "item": [
+        {
+          "name": "GET /Health (health check)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/Health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "Health"
+              ]
+            },
+            "description": "Health check endpoint. No auth required.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 \u2014 Auth",
+      "item": [
+        {
+          "name": "POST /api/auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Login \u2014 sets {{token}} collection variable via test script.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const pmResponse = pm.response.json();",
+                  "if (pmResponse.token) {",
+                  "    pm.collectionVariables.set('token', pmResponse.token);",
+                  "}",
+                  "pm.collectionVariables.set('userId', pmResponse.userId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/auth/register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Register a new account.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"newuser\",\n  \"email\": \"newuser@example.com\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "GET /api/auth/verify-email",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-email?token=example-token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify-email?token=example-token"
+              ]
+            },
+            "description": "Verify email with token from registration email.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "POST /api/auth/resend-verification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/resend-verification",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "resend-verification"
+              ]
+            },
+            "description": "Resend verification email.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "POST /api/auth/request-re-evaluation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/request-re-evaluation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "request-re-evaluation"
+              ]
+            },
+            "description": "Request re-evaluation of rejected account.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 \u2014 Assets",
+      "item": [
+        {
+          "name": "GET /api/assets (list)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assets?page=1&pageSize=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assets?page=1&pageSize=10"
+              ]
+            },
+            "description": "List assets with pagination. Test script extracts first asset ID."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data && data.items && data.items.length > 0) {",
+                  "    pm.collectionVariables.set('assetId', data.items[0].id);",
+                  "    pm.collectionVariables.set('assetTag', data.items[0].assetTag);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/assets/{id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assets/{{assetId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assets",
+                "{{assetId}}"
+              ]
+            },
+            "description": "Get asset by ID."
+          }
+        },
+        {
+          "name": "GET /api/assets/tag/{assetTag}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assets/tag/{{assetTag}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assets",
+                "tag",
+                "{{assetTag}}"
+              ]
+            },
+            "description": "Get asset by asset tag."
+          }
+        },
+        {
+          "name": "POST /api/assets (create)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assets"
+              ]
+            },
+            "description": "Create a new asset.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Test Asset\",\n  \"category\": \"Electronics\",\n  \"currentRoomCode\": \"LI1\",\n  \"status\": \"Active\",\n  \"manufacturer\": \"TestCorp\",\n  \"model\": \"T-1000\",\n  \"serialNumber\": \"SN-001\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data && data.id) {",
+                  "    pm.collectionVariables.set('assetId', data.id);",
+                  "    pm.collectionVariables.set('assetTag', data.assetTag);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/assets/{id}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assets/{{assetId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assets",
+                "{{assetId}}"
+              ]
+            },
+            "description": "Update an asset.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetTag\": \"{{assetTag}}\",\n  \"name\": \"Updated Asset Name\",\n  \"category\": \"Electronics\",\n  \"status\": \"Active\",\n  \"currentRoomCode\": \"LI1\"\n}"
+            }
+          }
+        },
+        {
+          "name": "PUT /api/assets/{id}/move",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assets/{{assetId}}/move",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assets",
+                "{{assetId}}",
+                "move"
+              ]
+            },
+            "description": "Move asset to a different room.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newRoomCode\": \"SALLE-INFO-1\"\n}"
+            }
+          }
+        },
+        {
+          "name": "PUT /api/assets/{id}/status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assets/{{assetId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assets",
+                "{{assetId}}",
+                "status"
+              ]
+            },
+            "description": "Update asset status.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Maintenance\"\n}"
+            }
+          }
+        },
+        {
+          "name": "PUT /api/assets/{id}/maintenance-due",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assets/{{assetId}}/maintenance-due",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assets",
+                "{{assetId}}",
+                "maintenance-due"
+              ]
+            },
+            "description": "Set maintenance due date.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dueDate\": \"2026-12-31\"\n}"
+            }
+          }
+        },
+        {
+          "name": "PUT /api/assets/{id}/rfid",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assets/{{assetId}}/rfid",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assets",
+                "{{assetId}}",
+                "rfid"
+              ]
+            },
+            "description": "Update RFID tag on asset.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rfidTagId\": \"RFID-001\"\n}"
+            }
+          }
+        },
+        {
+          "name": "DELETE /api/assets/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assets/{{assetId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assets",
+                "{{assetId}}"
+              ]
+            },
+            "description": "Delete an asset. Returns 204 No Content."
+          }
+        },
+        {
+          "name": "GET /api/assets/{id}/qr",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assets/{{assetId}}/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assets",
+                "{{assetId}}",
+                "qr"
+              ]
+            },
+            "description": "Generate QR code for asset (returns PNG)."
+          }
+        },
+        {
+          "name": "GET /api/assets/reconciliation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assets/reconciliation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assets",
+                "reconciliation"
+              ]
+            },
+            "description": "Get reconciliation data (room vs detected location discrepancies)."
+          }
+        },
+        {
+          "name": "POST /api/assets/import",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/assets/import",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "assets",
+                "import"
+              ]
+            },
+            "description": "Import assets from CSV file (multipart/form-data).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mode\": \"formdata\",\n  \"formdata\": [\n    {\n      \"key\": \"file\",\n      \"type\": \"file\",\n      \"src\": \"/path/to/assets.csv\"\n    }\n  ]\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 \u2014 Locations",
+      "item": [
+        {
+          "name": "GET /api/locations/hierarchy",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/locations/hierarchy",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "locations",
+                "hierarchy"
+              ]
+            },
+            "description": "Get full location hierarchy (sites \u2192 zones \u2192 buildings \u2192 floors \u2192 rooms)."
+          }
+        },
+        {
+          "name": "GET /api/locations/rooms/{code}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/locations/rooms/LI1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "locations",
+                "rooms",
+                "LI1"
+              ]
+            },
+            "description": "Get room by room code."
+          }
+        },
+        {
+          "name": "POST /api/locations/rooms",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/locations/rooms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "locations",
+                "rooms"
+              ]
+            },
+            "description": "Create a new room.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"NEWRM\",\n  \"name\": \"New Room\",\n  \"floorId\": \"00000000-0000-0000-0000-000000000000\"\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /api/locations/buildings",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/locations/buildings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "locations",
+                "buildings"
+              ]
+            },
+            "description": "Create a new building.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Building\",\n  \"zoneId\": \"00000000-0000-0000-0000-000000000000\"\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /api/locations/floors",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/locations/floors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "locations",
+                "floors"
+              ]
+            },
+            "description": "Create a new floor.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Floor 1\",\n  \"number\": 1,\n  \"buildingId\": \"00000000-0000-0000-0000-000000000000\"\n}"
+            }
+          }
+        },
+        {
+          "name": "PUT /api/locations/rooms/{id}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/locations/rooms/{{roomId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "locations",
+                "rooms",
+                "{{roomId}}"
+              ]
+            },
+            "description": "Update room geometry (position, size, colors).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"x\": 100,\n  \"y\": 200,\n  \"width\": 50,\n  \"height\": 60,\n  \"color\": \"#4CAF50\",\n  \"stroke\": \"#333\"\n}"
+            }
+          }
+        },
+        {
+          "name": "PUT /api/locations/rooms/batch",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/locations/rooms/batch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "locations",
+                "rooms",
+                "batch"
+              ]
+            },
+            "description": "Batch update room geometries.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"updates\": [\n    {\n      \"roomId\": \"00000000-0000-0000-0000-000000000000\",\n      \"x\": 10,\n      \"y\": 20,\n      \"width\": 50,\n      \"height\": 60\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "DELETE /api/locations/rooms/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/locations/rooms/{{roomId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "locations",
+                "rooms",
+                "{{roomId}}"
+              ]
+            },
+            "description": "Delete a room."
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 \u2014 Categories",
+      "item": [
+        {
+          "name": "GET /api/categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ]
+            },
+            "description": "Get all categories."
+          }
+        },
+        {
+          "name": "GET /api/categories/groups",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/categories/groups",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories",
+                "groups"
+              ]
+            },
+            "description": "Get all category groups."
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 \u2014 Reports",
+      "item": [
+        {
+          "name": "GET /api/reports/summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/summary?groupBy=category",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "summary?groupBy=category"
+              ]
+            },
+            "description": "Get inventory summary, grouped by category/status/location."
+          }
+        },
+        {
+          "name": "GET /api/reports/asset/{id}/history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/asset/{{assetId}}/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "asset",
+                "{{assetId}}",
+                "history"
+              ]
+            },
+            "description": "Get history for a specific asset."
+          }
+        },
+        {
+          "name": "GET /api/reports/activity",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/activity",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "activity"
+              ]
+            },
+            "description": "Get activity log with optional date range."
+          }
+        },
+        {
+          "name": "GET /api/reports/export/summary (CSV)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/export/summary?format=csv&groupBy=category",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "export",
+                "summary?format=csv&groupBy=category"
+              ]
+            },
+            "description": "Export summary as CSV or PDF."
+          }
+        },
+        {
+          "name": "GET /api/reports/export/history/{id} (CSV)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/export/history/{{assetId}}?format=csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "export",
+                "history",
+                "{{assetId}}?format=csv"
+              ]
+            },
+            "description": "Export asset history as CSV or PDF."
+          }
+        },
+        {
+          "name": "GET /api/reports/export/activity (CSV)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/export/activity?format=csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "export",
+                "activity?format=csv"
+              ]
+            },
+            "description": "Export activity log as CSV or PDF."
+          }
+        },
+        {
+          "name": "GET /api/reports/maintenance-forecast",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/maintenance-forecast?days=30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "maintenance-forecast?days=30"
+              ]
+            },
+            "description": "Get maintenance forecast for next N days."
+          }
+        },
+        {
+          "name": "GET /api/reports/export/maintenance-forecast (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/export/maintenance-forecast?days=30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "export",
+                "maintenance-forecast?days=30"
+              ]
+            },
+            "description": "Export maintenance forecast as PDF."
+          }
+        },
+        {
+          "name": "GET /api/reports/overdue-maintenance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/overdue-maintenance",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "overdue-maintenance"
+              ]
+            },
+            "description": "Get overdue maintenance items."
+          }
+        },
+        {
+          "name": "GET /api/reports/export/overdue-maintenance (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/export/overdue-maintenance",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "export",
+                "overdue-maintenance"
+              ]
+            },
+            "description": "Export overdue maintenance as PDF."
+          }
+        },
+        {
+          "name": "GET /api/reports/critical-issues",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/critical-issues",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "critical-issues"
+              ]
+            },
+            "description": "Get assets with critical issues."
+          }
+        },
+        {
+          "name": "GET /api/reports/export/critical-issues (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/export/critical-issues",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "export",
+                "critical-issues"
+              ]
+            },
+            "description": "Export critical issues as PDF."
+          }
+        },
+        {
+          "name": "GET /api/reports/status-summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/status-summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "status-summary"
+              ]
+            },
+            "description": "Get status summary (count by status)."
+          }
+        },
+        {
+          "name": "GET /api/reports/export/status-summary (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/export/status-summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "export",
+                "status-summary"
+              ]
+            },
+            "description": "Export status summary as PDF."
+          }
+        },
+        {
+          "name": "GET /api/reports/zone-inventory",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/zone-inventory",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "zone-inventory"
+              ]
+            },
+            "description": "Get zone inventory report."
+          }
+        },
+        {
+          "name": "GET /api/reports/export/zone-inventory (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/export/zone-inventory",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "export",
+                "zone-inventory"
+              ]
+            },
+            "description": "Export zone inventory as PDF."
+          }
+        },
+        {
+          "name": "GET /api/reports/building-stocktake",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/building-stocktake",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "building-stocktake"
+              ]
+            },
+            "description": "Get building stocktake report."
+          }
+        },
+        {
+          "name": "GET /api/reports/export/building-stocktake (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/export/building-stocktake",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "export",
+                "building-stocktake"
+              ]
+            },
+            "description": "Export building stocktake as PDF."
+          }
+        },
+        {
+          "name": "GET /api/reports/room-audit/{roomCode}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/room-audit/LI1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "room-audit",
+                "LI1"
+              ]
+            },
+            "description": "Get room audit data for a specific room."
+          }
+        },
+        {
+          "name": "GET /api/reports/export/room-audit/{roomCode} (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/export/room-audit/LI1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "export",
+                "room-audit",
+                "LI1"
+              ]
+            },
+            "description": "Export room audit as PDF."
+          }
+        },
+        {
+          "name": "GET /api/reports/empty-rooms",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/empty-rooms?threshold=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "empty-rooms?threshold=0"
+              ]
+            },
+            "description": "Get rooms with zero assets (or below threshold)."
+          }
+        },
+        {
+          "name": "GET /api/reports/export/empty-rooms (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/export/empty-rooms?threshold=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "export",
+                "empty-rooms?threshold=0"
+              ]
+            },
+            "description": "Export empty rooms as PDF."
+          }
+        },
+        {
+          "name": "GET /api/reports/location-discrepancies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/location-discrepancies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "location-discrepancies"
+              ]
+            },
+            "description": "Get location discrepancies (expected vs detected room)."
+          }
+        },
+        {
+          "name": "GET /api/reports/export/location-discrepancies (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/export/location-discrepancies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "export",
+                "location-discrepancies"
+              ]
+            },
+            "description": "Export location discrepancies as PDF."
+          }
+        },
+        {
+          "name": "GET /api/reports/category-stocktake",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/category-stocktake",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "category-stocktake"
+              ]
+            },
+            "description": "Get category stocktake report."
+          }
+        },
+        {
+          "name": "GET /api/reports/export/category-stocktake (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/export/category-stocktake",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "export",
+                "category-stocktake"
+              ]
+            },
+            "description": "Export category stocktake as PDF."
+          }
+        },
+        {
+          "name": "GET /api/reports/department-report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/department-report",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "department-report"
+              ]
+            },
+            "description": "Get department (zone) report."
+          }
+        },
+        {
+          "name": "GET /api/reports/export/department-report (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/export/department-report",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "export",
+                "department-report"
+              ]
+            },
+            "description": "Export department report as PDF."
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 \u2014 Notifications",
+      "item": [
+        {
+          "name": "GET /api/notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications"
+              ]
+            },
+            "description": "Get notifications for current user."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data && data.length > 0) {",
+                  "    pm.collectionVariables.set('notificationId', data[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/notifications/unread-count",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/unread-count",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "unread-count"
+              ]
+            },
+            "description": "Get unread notification count."
+          }
+        },
+        {
+          "name": "PUT /api/notifications/{id}/read",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/{{notificationId}}/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "{{notificationId}}",
+                "read"
+              ]
+            },
+            "description": "Mark a notification as read."
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 \u2014 User Preferences",
+      "item": [
+        {
+          "name": "GET /api/users/preferences",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/preferences",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "preferences"
+              ]
+            },
+            "description": "Get current user preferences."
+          }
+        },
+        {
+          "name": "PUT /api/users/preferences",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/preferences",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "preferences"
+              ]
+            },
+            "description": "Update user preferences.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"theme\": \"dark\",\n  \"notifications\": \"true\"\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /api/users/preferences/role-defaults",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/preferences/role-defaults",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "preferences",
+                "role-defaults"
+              ]
+            },
+            "description": "Get role default preferences."
+          }
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "// Collection-level pre-request script"
+        ],
+        "type": "text/javascript"
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "exec": [
+          "// Collection-level test script"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "assetId",
+      "value": ""
+    },
+    {
+      "key": "assetTag",
+      "value": ""
+    },
+    {
+      "key": "roomId",
+      "value": ""
+    },
+    {
+      "key": "notificationId",
+      "value": ""
+    }
+  ]
+}

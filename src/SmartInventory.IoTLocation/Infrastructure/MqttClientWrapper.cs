@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Security.Authentication;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -34,13 +35,28 @@ public class MqttClientWrapper : IMqttClientWrapper, IDisposable
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        var options = new MqttClientOptionsBuilder()
+        var optionsBuilder = new MqttClientOptionsBuilder()
             .WithTcpServer(_settings.Host, _settings.Port)
             .WithClientId($"{_settings.ClientIdPrefix}-{Guid.NewGuid()}")
             .WithKeepAlivePeriod(TimeSpan.FromSeconds(_settings.KeepAliveSeconds))
             .WithTimeout(TimeSpan.FromSeconds(_settings.TimeoutSeconds))
-            .WithCleanStart(_settings.CleanStart)
-            .Build();
+            .WithCleanStart(_settings.CleanStart);
+
+        if (!string.IsNullOrEmpty(_settings.Username))
+        {
+            optionsBuilder.WithCredentials(_settings.Username, _settings.Password);
+        }
+
+        if (_settings.UseTls)
+        {
+            optionsBuilder.WithTlsOptions(o =>
+            {
+                o.WithCertificateValidationHandler(_ => true)
+                 .WithSslProtocols(SslProtocols.Tls12);
+            });
+        }
+
+        var options = optionsBuilder.Build();
 
         await ConnectWithRetryAsync(options, cancellationToken);
     }
@@ -128,7 +144,9 @@ public class MqttClientWrapper : IMqttClientWrapper, IDisposable
 
     private Task OnConnected(MqttClientConnectedEventArgs args)
     {
-        _logger.LogInformation("MQTT client connected to {Host}:{Port}", _settings.Host, _settings.Port);
+        var auth = string.IsNullOrEmpty(_settings.Username) ? "anonymous" : "authenticated";
+        var tls = _settings.UseTls ? "TLS" : "no-TLS";
+        _logger.LogInformation("MQTT client connected to {Host}:{Port} [{Auth}, {Tls}]", _settings.Host, _settings.Port, auth, tls);
         return SubscribeToTopicAsync();
     }
 
@@ -183,6 +201,7 @@ public class MqttSettings
     public string Password { get; set; } = string.Empty;
     public int QosLevel { get; set; } = 1;
     public bool CleanStart { get; set; } = true;
+    public bool UseTls { get; set; }
     public int KeepAliveSeconds { get; set; } = 30;
     public int TimeoutSeconds { get; set; } = 10;
 }

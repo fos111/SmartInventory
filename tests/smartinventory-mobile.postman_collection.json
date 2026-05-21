@@ -1,0 +1,672 @@
+{
+  "info": {
+    "name": "SmartInventory Mobile API — Full",
+    "description": "Complete .NET mobile API collection covering all 9 controllers.\n\n## Setup\n1. Import environment: `smartinventory-mobile.postman_environment.json`\n2. Select environment \"SmartInventory Mobile - Local\"\n3. Start with **Login** → runs all subsequent requests\n\n## Folders\n- **01-Auth** — register, login, verify, password reset, profile\n- **02-Supervisor** — admin user management (requires Supervisor role)\n- **03-Home** — dashboard aggregation\n- **04-Lookups** — categories, departments, rooms, stats, barcode\n- **05-Products** — CRUD, search, scan, status, location, history\n- **06-Assets** — batch operations\n- **07-Sync** — offline sync queue\n- **08-Reports** — PDF fiche/journal, QR code downloads\n- **09-Notifications** — list, read, delete\n\n## Variables (auto-populated)\n- `{{token}}` — set by Login\n- `{{productId}}` — set by GET /products",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "00 — Login (sets token)",
+      "description": "Authenticates and stores the access token in `{{token}}`. All subsequent requests use collection-level Bearer auth.",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var jsonData = pm.response.json();",
+              "pm.test(\"Login succeeds\", () => {",
+              "    pm.expect(jsonData.success).to.be.true;",
+              "    pm.expect(jsonData.data.accessToken).to.not.be.empty;",
+              "});",
+              "if (jsonData.success && jsonData.data.accessToken) {",
+              "    pm.collectionVariables.set(\"token\", jsonData.data.accessToken);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "01 — Auth",
+      "item": [
+        {
+          "name": "POST Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New User\",\n  \"email\": \"newuser@test.com\",\n  \"password\": \"Password123!\",\n  \"role\": \"technicien\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] }
+          }
+        },
+        {
+          "name": "POST Verify Email",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"user@test.com\",\n  \"otp\": \"123456\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/verify-email", "host": ["{{baseUrl}}"], "path": ["auth", "verify-email"] }
+          }
+        },
+        {
+          "name": "POST Resend Verification",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"user@test.com\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/resend-verification", "host": ["{{baseUrl}}"], "path": ["auth", "resend-verification"] }
+          }
+        },
+        {
+          "name": "POST Forgot Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"user@test.com\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/forgot-password", "host": ["{{baseUrl}}"], "path": ["auth", "forgot-password"] }
+          }
+        },
+        {
+          "name": "POST Reset Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"user@test.com\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"NewPass123!\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/reset-password", "host": ["{{baseUrl}}"], "path": ["auth", "reset-password"] }
+          }
+        },
+        {
+          "name": "POST Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data.accessToken) {",
+                  "    pm.collectionVariables.set(\"token\", jsonData.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/refresh", "host": ["{{baseUrl}}"], "path": ["auth", "refresh"] }
+          }
+        },
+        {
+          "name": "GET /auth/me",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"GET /auth/me returns profile\", () => {",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.have.property(\"name\");",
+                  "    pm.expect(jsonData.data).to.have.property(\"email\");",
+                  "    pm.expect(jsonData.data).to.have.property(\"role\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
+          }
+        },
+        {
+          "name": "POST Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 — Supervisor (Admin Users)",
+      "description": "Requires Supervisor role. The test user `mohamed.benali@isetma.tn` has this role.",
+      "item": [
+        {
+          "name": "GET /auth/users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"GET /auth/users returns list\", () => {",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.be.an(\"array\");",
+                  "    pm.expect(jsonData.data.length).to.be.greaterThan(0);",
+                  "});",
+                  "if (jsonData.data && jsonData.data.length > 0) {",
+                  "    pm.collectionVariables.set(\"userId\", jsonData.data[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/auth/users", "host": ["{{baseUrl}}"], "path": ["auth", "users"] }
+          }
+        },
+        {
+          "name": "PATCH Update User Role",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"gestionnaire\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}/role", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}", "role"] }
+          }
+        },
+        {
+          "name": "PATCH Toggle User Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"isActive\": false\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}/status", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}", "status"] }
+          }
+        },
+        {
+          "name": "DELETE User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 — Home",
+      "item": [
+        {
+          "name": "GET /home",
+          "description": "Dashboard aggregation — user profile, inventory stats, recent activity, unread notifications.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "var data = jsonData.data || {};",
+                  "pm.test(\"GET /home returns dashboard\", () => {",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(data.user).to.not.be.null;",
+                  "    pm.expect(data.stats).to.have.property(\"inStock\");",
+                  "    pm.expect(data.recentActivity).to.be.an(\"array\");",
+                  "    pm.expect(data.unreadNotifications).to.be.a(\"number\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/home", "host": ["{{baseUrl}}"], "path": ["home"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 — Lookups",
+      "item": [
+        {
+          "name": "GET Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/lookups/categories", "host": ["{{baseUrl}}"], "path": ["lookups", "categories"] }
+          }
+        },
+        {
+          "name": "GET Departments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"GET departments returns list\", () => {",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.be.an(\"array\");",
+                  "});",
+                  "if (jsonData.data && jsonData.data.length > 0) {",
+                  "    pm.collectionVariables.set(\"departmentId\", jsonData.data[0].id);",
+                  "    pm.collectionVariables.set(\"departmentCode\", jsonData.data[0].code || jsonData.data[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/lookups/departments", "host": ["{{baseUrl}}"], "path": ["lookups", "departments"] }
+          }
+        },
+        {
+          "name": "GET Department Rooms",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.length > 0) {",
+                  "    pm.collectionVariables.set(\"roomCode\", jsonData.data[0].code || jsonData.data[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/lookups/departments/{{departmentId}}/rooms", "host": ["{{baseUrl}}"], "path": ["lookups", "departments", "{{departmentId}}", "rooms"] }
+          }
+        },
+        {
+          "name": "GET Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/lookups/stats", "host": ["{{baseUrl}}"], "path": ["lookups", "stats"] }
+          }
+        },
+        {
+          "name": "GET Move Log",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/lookups/move-log", "host": ["{{baseUrl}}"], "path": ["lookups", "move-log"] }
+          }
+        },
+        {
+          "name": "GET Barcode Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/lookups/barcode-check?barcode=TEST123", "host": ["{{baseUrl}}"], "path": ["lookups", "barcode-check"], "query": [{ "key": "barcode", "value": "TEST123" }] }
+          }
+        },
+        {
+          "name": "POST Scan History (lookups)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"departmentCode\": \"INFO\",\n  \"departmentName\": \"Informatique\"\n}" },
+            "url": { "raw": "{{baseUrl}}/lookups/scan-history", "host": ["{{baseUrl}}"], "path": ["lookups", "scan-history"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 — Products",
+      "item": [
+        {
+          "name": "GET /products",
+          "description": "Sets `{{productId}}` from the first result for use by subsequent requests.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "var items = (jsonData.data && jsonData.data.items) || [];",
+                  "pm.test(\"GET /products returns list\", () => {",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(items.length).to.be.greaterThan(0);",
+                  "});",
+                  "if (items.length > 0) {",
+                  "    pm.collectionVariables.set(\"productId\", items[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["products"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /products/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["products", "{{productId}}"] }
+          }
+        },
+        {
+          "name": "GET /products/scan?assetTag=",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/products/scan?assetTag=AST-000001", "host": ["{{baseUrl}}"], "path": ["products", "scan"], "query": [{ "key": "assetTag", "value": "AST-000001" }] }
+          }
+        },
+        {
+          "name": "GET /products/scan-history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/products/scan-history", "host": ["{{baseUrl}}"], "path": ["products", "scan-history"] }
+          }
+        },
+        {
+          "name": "POST /products/json",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"assetTag\": \"\",\n  \"name\": \"New Equipment\",\n  \"category\": \"Electronics\",\n  \"status\": \"InStock\",\n  \"currentRoomCode\": \"LI1\"\n}" },
+            "url": { "raw": "{{baseUrl}}/products/json", "host": ["{{baseUrl}}"], "path": ["products", "json"] }
+          }
+        },
+        {
+          "name": "PUT /products/{id}/status",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"Maintenance\"\n}" },
+            "url": { "raw": "{{baseUrl}}/products/{{productId}}/status", "host": ["{{baseUrl}}"], "path": ["products", "{{productId}}", "status"] }
+          }
+        },
+        {
+          "name": "PUT /products/{id}/location (valid room)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"PUT location succeeds\", () => {",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.currentRoomCode).to.eql(\"LI1\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"roomId\": \"LI1\"\n}" },
+            "url": { "raw": "{{baseUrl}}/products/{{productId}}/location", "host": ["{{baseUrl}}"], "path": ["products", "{{productId}}", "location"] }
+          }
+        },
+        {
+          "name": "PUT /products/{id}/location (invalid room)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Invalid room returns failure\", () => {",
+                  "    pm.expect(jsonData.success).to.be.false;",
+                  "});",
+                  "pm.test(\"Error message mentions room code\", () => {",
+                  "    pm.expect(jsonData.message.toLowerCase()).to.include(\"room\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"roomId\": \"INVALID_ROOM_XYZ\"\n}" },
+            "url": { "raw": "{{baseUrl}}/products/{{productId}}/location", "host": ["{{baseUrl}}"], "path": ["products", "{{productId}}", "location"] }
+          }
+        },
+        {
+          "name": "DELETE /products/{id} (non-retired)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"DELETE non-retired fails gracefully\", () => {",
+                  "    pm.expect(jsonData.success).to.be.false;",
+                  "});",
+                  "pm.test(\"Message explains retired-only rule\", () => {",
+                  "    pm.expect(jsonData.message.toLowerCase()).to.include(\"retired\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["products", "{{productId}}"] }
+          }
+        },
+        {
+          "name": "POST /products/scan-history",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"assetTag\": \"AST-000001\"\n}" },
+            "url": { "raw": "{{baseUrl}}/products/scan-history", "host": ["{{baseUrl}}"], "path": ["products", "scan-history"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 — Assets",
+      "item": [
+        {
+          "name": "POST /assets/batch",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"operations\": [\n    {\n      \"type\": \"move\",\n      \"assetId\": \"{{productId}}\",\n      \"roomCode\": \"LI1\"\n    }\n  ]\n}" },
+            "url": { "raw": "{{baseUrl}}/assets/batch", "host": ["{{baseUrl}}"], "path": ["assets", "batch"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 — Sync",
+      "item": [
+        {
+          "name": "POST /sync/queue",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"operations\": []\n}" },
+            "url": { "raw": "{{baseUrl}}/sync/queue", "host": ["{{baseUrl}}"], "path": ["sync", "queue"] }
+          }
+        },
+        {
+          "name": "GET /sync/status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/sync/status", "host": ["{{baseUrl}}"], "path": ["sync", "status"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 — Reports",
+      "item": [
+        {
+          "name": "GET Room Fiche PDF",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/reports/fiche/{{roomCode}}", "host": ["{{baseUrl}}"], "path": ["reports", "fiche", "{{roomCode}}"] }
+          }
+        },
+        {
+          "name": "GET Room Journal PDF",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/reports/journal/{{roomCode}}", "host": ["{{baseUrl}}"], "path": ["reports", "journal", "{{roomCode}}"] }
+          }
+        },
+        {
+          "name": "GET ISET QR",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/reports/qr/iset", "host": ["{{baseUrl}}"], "path": ["reports", "qr", "iset"] }
+          }
+        },
+        {
+          "name": "GET Department QR (by-id)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/reports/qr/department/{{departmentId}}", "host": ["{{baseUrl}}"], "path": ["reports", "qr", "department", "{{departmentId}}"] }
+          }
+        },
+        {
+          "name": "GET Department QR (by-code)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/reports/qr/department/by-code/{{departmentCode}}", "host": ["{{baseUrl}}"], "path": ["reports", "qr", "department", "by-code", "{{departmentCode}}"] }
+          }
+        },
+        {
+          "name": "GET Room QR",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/reports/qr/room/{{roomCode}}", "host": ["{{baseUrl}}"], "path": ["reports", "qr", "room", "{{roomCode}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 — Notifications",
+      "item": [
+        {
+          "name": "GET /notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/notifications", "host": ["{{baseUrl}}"], "path": ["notifications"] }
+          }
+        },
+        {
+          "name": "GET /notifications/unread-count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/notifications/unread-count", "host": ["{{baseUrl}}"], "path": ["notifications", "unread-count"] }
+          }
+        },
+        {
+          "name": "PUT Mark Read",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/notifications/{{notificationId}}/read", "host": ["{{baseUrl}}"], "path": ["notifications", "{{notificationId}}", "read"] }
+          }
+        },
+        {
+          "name": "PUT Mark All Read",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/notifications/read-all", "host": ["{{baseUrl}}"], "path": ["notifications", "read-all"] }
+          }
+        },
+        {
+          "name": "DELETE Notification",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/notifications/{{notificationId}}", "host": ["{{baseUrl}}"], "path": ["notifications", "{{notificationId}}"] }
+          }
+        },
+        {
+          "name": "DELETE Clear All",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/notifications", "host": ["{{baseUrl}}"], "path": ["notifications"] }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "token", "value": "" },
+    { "key": "productId", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "departmentId", "value": "" },
+    { "key": "departmentCode", "value": "" },
+    { "key": "roomCode", "value": "" },
+    { "key": "notificationId", "value": "" },
+    { "key": "refreshToken", "value": "" }
+  ]
+}

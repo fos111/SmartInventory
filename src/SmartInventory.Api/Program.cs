@@ -1,6 +1,9 @@
 using System.Text.Json.Serialization;
 using SmartInventory.API.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.FileProviders;
+using SmartInventory.Application.Storage.Interfaces;
+using SmartInventory.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Hangfire;
@@ -30,12 +33,44 @@ using SmartInventory.Application.Notification.Services;
 using SmartInventory.Application.UserPreferences.Interfaces;
 using SmartInventory.Application.UserPreferences.Services;
 using SmartInventory.Infrastructure.UserPreferences.Repositories;
+using SmartInventory.Application.Mobile.Auth.Interfaces;
+using SmartInventory.Application.Mobile.Auth.Mappings;
+using SmartInventory.Application.PasswordReset.Interfaces;
+using SmartInventory.Infrastructure.Mobile.Auth.Repositories;
+using SmartInventory.Application.Mobile.Auth.Services;
+using SmartInventory.Application.Mobile.Lookup.Interfaces;
+using SmartInventory.Application.Mobile.Lookup.Services;
+using SmartInventory.Application.Mobile.Products.Interfaces;
+using SmartInventory.Application.Mobile.Products.Services;
+using SmartInventory.Application.Mobile.Notifications.Interfaces;
+using SmartInventory.Application.Mobile.Notifications.Services;
+using SmartInventory.Application.Mobile.Reports.Interfaces;
+using SmartInventory.Application.Mobile.Reports.Services;
+using SmartInventory.Application.Mobile.Sync.Interfaces;
+using SmartInventory.Application.Mobile.Sync.Services;
+using SmartInventory.Application.Mobile.Home.Interfaces;
+using SmartInventory.Application.Mobile.Home.Services;
+using SmartInventory.Infrastructure.Mobile.Repositories;
+using SmartInventory.Application.PasswordReset.Services;
 using SmartInventory.Api.Hubs;
+using SmartInventory.IoTLocation.Infrastructure;
+using SmartInventory.IoTLocation.Interfaces;
+using SmartInventory.IoTLocation.Services;
+using SmartInventory.IoTLocation;
+using SmartInventory.Application.Caching;
+using SmartInventory.Infrastructure.Caching;
+using StackExchange.Redis;
 using System.Net;
 using System.Net.Mail;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Load IoT Location settings (MqttSettings: host, port, TLS, topic for HiveMQ Cloud)
+builder.Configuration.AddJsonFile(
+    Path.Combine(builder.Environment.ContentRootPath,
+        "..", "SmartInventory.IoTLocation", "appsettings.json"),
+    optional: true, reloadOnChange: true);
 
 var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? Environment.GetEnvironmentVariable("AZURE_POSTGRES_CONNECTION_STRING");
@@ -88,6 +123,26 @@ var smtpSettings = new SmtpSettings
 
 builder.Services.AddSingleton(smtpSettings);
 
+// MQTT IoT Location - credentials from environment variables
+var hivemqUsername = Environment.GetEnvironmentVariable("HIVEMQ_USERNAME");
+var hivemqPassword = Environment.GetEnvironmentVariable("HIVEMQ_PASSWORD");
+
+if (string.IsNullOrEmpty(hivemqUsername) || string.IsNullOrEmpty(hivemqPassword))
+{
+    throw new InvalidOperationException("HIVEMQ_USERNAME and HIVEMQ_PASSWORD environment variables are required");
+}
+
+builder.Services.Configure<MqttSettings>(builder.Configuration.GetSection("MqttSettings"));
+builder.Services.PostConfigure<MqttSettings>(settings =>
+{
+    settings.Username = hivemqUsername;
+    settings.Password = hivemqPassword;
+});
+
+builder.Services.AddSingleton<IMqttClientWrapper, MqttClientWrapper>();
+builder.Services.AddScoped<IIoTLocationService, IoTLocationService>();
+builder.Services.AddHostedService<Worker>();
+
 builder.Services.AddScoped<ISmtpClient>(sp =>
 {
     var settings = sp.GetRequiredService<SmtpSettings>();
@@ -99,7 +154,6 @@ builder.Services.AddScoped<ISmtpClient>(sp =>
     return new SmtpClientWrapper(smtpClient);
 });
 
-builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 builder.Services.AddScoped<IEmailJob, EmailJob>();
 
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
@@ -136,6 +190,7 @@ builder.Services.AddScoped<ILocationRepository, LocationRepository>();
 builder.Services.AddScoped<ILocationService, LocationService>();
 
 builder.Services.AddScoped<IBulkImportJob, BulkImportJob>();
+builder.Services.AddScoped<IMaintenanceNotificationJob, MaintenanceNotificationJob>();
 builder.Services.AddScoped<IAssetRepository, AssetRepository>();
 builder.Services.AddScoped<IAssetHistoryRepository, AssetHistoryRepository>();
 builder.Services.AddScoped<IAssetHistoryService, AssetHistoryService>();
@@ -151,14 +206,59 @@ builder.Services.AddScoped<PdfExportService>();
 builder.Services.AddSignalR();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IMobileNotificationService, MobileNotificationService>();
+builder.Services.AddScoped<INotificationDispatcher, SignalRNotificationDispatcher>();
 
 builder.Services.AddScoped<IUserPreferenceRepository, UserPreferenceRepository>();
 builder.Services.AddScoped<IUserPreferenceService, UserPreferenceService>();
 
 builder.Services.AddAutoMapper(typeof(LocationMappingProfile));
 builder.Services.AddAutoMapper(typeof(AssetMappingProfile));
+builder.Services.AddAutoMapper(typeof(MobileAuthMappingProfile));
 
-builder.Services.AddHealthChecks();
+// Mobile Auth DI
+builder.Services.AddScoped<IRefreshTokenRepository, RedisRefreshTokenRepository>();
+builder.Services.AddScoped<IPasswordResetTokenRepository, RedisPasswordResetTokenRepository>();
+builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
+builder.Services.AddScoped<IMobileAuthService, MobileAuthService>();
+
+// Mobile Lookup DI
+builder.Services.AddScoped<IMobileLookupService, MobileLookupService>();
+
+// File Storage DI
+builder.Services.AddSingleton<IFileStorageService>(sp =>
+    new LocalFileStorageService(Directory.GetCurrentDirectory()));
+
+// Mobile Products DI
+builder.Services.AddScoped<IMobileProductService, MobileProductService>();
+builder.Services.AddScoped<IMobileProductWriteService, MobileProductWriteService>();
+
+// Mobile Reports DI
+builder.Services.AddScoped<IMobileReportService, MobileReportService>();
+
+// Mobile Sync DI
+builder.Services.AddScoped<ISyncQueueRepository, SyncQueueRepository>();
+builder.Services.AddScoped<ISyncQueueService, SyncQueueService>();
+builder.Services.AddScoped<IMobileSyncService, MobileSyncService>();
+
+// Mobile Home DI
+builder.Services.AddScoped<IMobileHomeService, MobileHomeService>();
+
+var redisConnection = builder.Configuration.GetConnectionString("Redis")
+    ?? "localhost:6379";
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+    ConnectionMultiplexer.Connect(new ConfigurationOptions
+    {
+        EndPoints = { redisConnection },
+        AbortOnConnectFail = false,
+        AllowAdmin = true
+    }));
+builder.Services.AddScoped<ICacheService, RedisCacheService>();
+
+builder.Services.AddHealthChecks()
+    .AddCheck<RedisHealthCheck>("redis");
 
 builder.Services.AddHangfire(config =>
     config.UsePostgreSqlStorage(defaultConnection));
@@ -171,10 +271,23 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins(allowedOrigins)
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        if (builder.Environment.IsDevelopment())
+        {
+            // Development: allow any origin (Flutter Web uses random ports)
+            // Use SetIsOriginAllowed instead of AllowAnyOrigin because
+            // AllowCredentials cannot be combined with AllowAnyOrigin.
+            policy.SetIsOriginAllowed(_ => true)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        }
+        else
+        {
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        }
     });
 });
 
@@ -196,6 +309,9 @@ app.UseHttpsRedirection();
 
 app.UseCors("AllowFrontend");
 
+// Serve uploaded files (avatars, product photos)
+app.UseStaticFiles();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -216,5 +332,16 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
     Authorization = new[] { new SmartInventory.Api.HangfireDashboardAuthorizationFilter() }
 });
+
+// Register recurring jobs
+RecurringJob.AddOrUpdate<ISyncQueueService>(
+    "sync-queue-purge",
+    service => service.CleanupOldEntriesAsync(CancellationToken.None),
+    Cron.Daily);
+
+RecurringJob.AddOrUpdate<IMaintenanceNotificationJob>(
+    "maintenance-notification",
+    job => job.RunAsync(CancellationToken.None),
+    Cron.Daily);
 
 app.Run();

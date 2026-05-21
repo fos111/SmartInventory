@@ -10,12 +10,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SmartInventory.Domain\SmartInventory.Domain.csproj" />
+    <ProjectReference Include="..\SmartInventory.Application\SmartInventory.Application.csproj" />
     <ProjectReference Include="..\SmartInventory.Infrastructure\SmartInventory.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
-    <PackageReference Include="MQTTnet" Version="5.0.0.0" />
+    <PackageReference Include="MQTTnet" Version="5.1.0.1559" />
   </ItemGroup>
 
 </Project>

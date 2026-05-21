@@ -1,4 +1,5 @@
 using SmartInventory.Application.Asset.DTOs.Reports;
+using SmartInventory.Application.Mobile.Reports.DTOs;
 
 namespace SmartInventory.Application.Asset.Interfaces;
 
@@ -15,4 +16,9 @@ public interface IPdfReportService
     byte[] GenerateLocationDiscrepancies(List<LocationDiscrepancyDto> data);
     byte[] GenerateCategoryStocktake(List<CategoryStocktakeDto> data);
     byte[] GenerateDepartmentReport(List<DepartmentReportDto> data);
+
+    /// <summary>
+    /// Generates a PDF journal of activity/transactions for a specific room.
+    /// </summary>
+    byte[] GenerateRoomJournal(RoomJournalDto data);
 }

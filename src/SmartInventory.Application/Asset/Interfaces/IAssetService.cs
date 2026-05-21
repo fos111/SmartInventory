@@ -18,10 +18,13 @@ public interface IAssetService
     Task<AssetDto> UpdateAssetAsync(Guid id, UpdateAssetDto dto, Guid userId);
     Task<AssetDto> MoveAssetAsync(Guid id, string newRoomCode, Guid userId);
     Task<AssetDto> UpdateRfidAsync(Guid id, string rfidTagId, Guid userId);
-    Task<AssetDto> UpdateStatusAsync(Guid id, AssetStatus status, Guid userId, UserRole userRole = UserRole.Technicien);
+    Task<AssetDto> UpdateBleIdAsync(Guid id, string? bleId, Guid userId);
+    Task<AssetDto> UpdatePriceAsync(Guid id, string? price, Guid userId);
+    Task<AssetDto> UpdateStatusAsync(Guid id, AssetStatus status, Guid userId, UserRole userRole = UserRole.Technicien, string? note = null);
     Task<AssetDto> SetMaintenanceDueDateAsync(Guid id, DateTime? dueDate, Guid userId);
     Task DeleteAssetAsync(string id, Guid userId);
     Task<byte[]> GenerateQrCodeAsync(Guid id);
+    Task<byte[]> GenerateBarcodeAsync(Guid id, int width, int height);
     Task<IEnumerable<AssetReconciliationDto>> GetReconciliationAsync();
     Task<BulkImportResponse> ImportAssetsAsync(Stream csvStream, Guid userId);
 }

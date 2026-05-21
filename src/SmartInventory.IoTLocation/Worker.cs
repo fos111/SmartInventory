@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SmartInventory.IoTLocation.Interfaces;
@@ -10,13 +11,13 @@ namespace SmartInventory.IoTLocation;
 public class Worker : BackgroundService
 {
     private readonly IMqttClientWrapper _mqttClient;
-    private readonly IIoTLocationService _locationService;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<Worker> _logger;
 
-    public Worker(IMqttClientWrapper mqttClient, IIoTLocationService locationService, ILogger<Worker> logger)
+    public Worker(IMqttClientWrapper mqttClient, IServiceScopeFactory scopeFactory, ILogger<Worker> logger)
     {
         _mqttClient = mqttClient ?? throw new ArgumentNullException(nameof(mqttClient));
-        _locationService = locationService ?? throw new ArgumentNullException(nameof(locationService));
+        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -40,14 +41,16 @@ public class Worker : BackgroundService
         }
     }
 
-    private async Task ProcessMessageAsync(MqttMessageReceivedEventArgs args)
+    private Task ProcessMessageAsync(MqttMessageReceivedEventArgs args)
     {
-        try
+        _ = Task.Run(async () =>
         {
-            _ = Task.Run(async () =>
+            try
             {
-                var result = await _locationService.ProcessLocationAsync(args.Payload, CancellationToken.None);
-                
+                using var scope = _scopeFactory.CreateScope();
+                var locationService = scope.ServiceProvider.GetRequiredService<IIoTLocationService>();
+                var result = await locationService.ProcessLocationAsync(args.Payload, CancellationToken.None);
+
                 if (result.Success)
                 {
                     _logger.LogInformation("Processed location for asset {AssetId}, room {RoomCode}", 
@@ -57,12 +60,14 @@ public class Worker : BackgroundService
                 {
                     _logger.LogWarning("Failed to process location: {Error}", result.ErrorMessage);
                 }
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error processing MQTT message");
-        }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing MQTT message in background task");
+            }
+        });
+
+        return Task.CompletedTask;
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)

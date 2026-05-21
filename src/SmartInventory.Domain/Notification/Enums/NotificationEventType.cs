@@ -50,7 +50,11 @@ public enum NotificationEventType
     AuthLoginSuccess,
     AuthLoginError,
     AuthRegisterError,
+    AuthRegisterSuccess,
     AuthEmailConfirmed,
+    AuthUserApproved,
+    AuthUserRejected,
+    AuthReEvaluationRequested,
 
     // Settings
     SettingsProfileUpdated,
