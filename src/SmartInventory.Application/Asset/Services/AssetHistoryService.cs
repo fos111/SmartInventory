@@ -39,4 +39,9 @@ public class AssetHistoryService : IAssetHistoryService
     {
         return await _repository.GetAllAsync(from, to);
     }
+
+    public async Task<IEnumerable<AssetHistoryEntity>> GetByAssetIdsAsync(HashSet<Guid> assetIds, DateTime? from = null, DateTime? to = null)
+    {
+        return await _repository.GetByAssetIdsAsync(assetIds, from, to);
+    }
 }

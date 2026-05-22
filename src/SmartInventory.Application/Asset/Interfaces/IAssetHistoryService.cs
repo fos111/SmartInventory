@@ -10,4 +10,5 @@ public interface IAssetHistoryService
     Task TrackChangeAsync(Guid assetId, string property, string? oldValue, string? newValue, Guid userId);
     Task<IEnumerable<AssetHistoryEntity>> GetAssetHistoryAsync(Guid assetId);
     Task<IEnumerable<AssetHistoryEntity>> GetAllHistoryAsync(DateTime? from = null, DateTime? to = null);
+    Task<IEnumerable<AssetHistoryEntity>> GetByAssetIdsAsync(HashSet<Guid> assetIds, DateTime? from = null, DateTime? to = null);
 }

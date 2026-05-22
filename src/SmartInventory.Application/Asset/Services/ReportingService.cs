@@ -11,6 +11,7 @@ using SmartInventory.Application.Caching;
 using SmartInventory.Application.Location.Interfaces;
 using SmartInventory.Domain.Asset.Enums;
 using SmartInventory.Domain.Auth.Enums;
+using SmartInventory.Domain.Location.Entities;
 using AssetEntity = SmartInventory.Domain.Asset.Entities.Asset;
 using AssetHistoryEntity = SmartInventory.Domain.Asset.Entities.AssetHistory;
 
@@ -22,35 +23,16 @@ public class ReportingService : IReportingService
     private readonly IAssetHistoryService _historyService;
     private readonly IActivityLogService _activityLogService;
     private readonly IAuthRepository _authRepository;
-    private readonly ILocationRepository _locationRepository;
+    private readonly ILocationRepository? _locationRepository;
     private readonly ICacheService? _cacheService;
 
     public ReportingService(
         IAssetRepository assetRepository,
         IAssetHistoryService historyService,
         IActivityLogService activityLogService,
-        IAuthRepository authRepository)
-        : this(assetRepository, historyService, activityLogService, authRepository, null!, null!)
-    {
-    }
-
-    public ReportingService(
-        IAssetRepository assetRepository,
-        IAssetHistoryService historyService,
-        IActivityLogService activityLogService,
         IAuthRepository authRepository,
-        ILocationRepository locationRepository)
-        : this(assetRepository, historyService, activityLogService, authRepository, locationRepository, null!)
-    {
-    }
-
-    public ReportingService(
-        IAssetRepository assetRepository,
-        IAssetHistoryService historyService,
-        IActivityLogService activityLogService,
-        IAuthRepository authRepository,
-        ILocationRepository locationRepository,
-        ICacheService? cacheService)
+        ILocationRepository? locationRepository = null,
+        ICacheService? cacheService = null)
     {
         _assetRepository = assetRepository;
         _historyService = historyService;
@@ -60,7 +42,7 @@ public class ReportingService : IReportingService
         _cacheService = cacheService;
     }
 
-    public async Task<IEnumerable<InventorySummaryDto>> GetInventorySummaryAsync(
+    public async Task<List<InventorySummaryDto>> GetInventorySummaryAsync(
         string groupBy, Guid? userId, UserRole role)
     {
         groupBy = groupBy?.ToLowerInvariant() ?? "category";
@@ -77,50 +59,40 @@ public class ReportingService : IReportingService
             {
                 "category" => valid.GroupBy(a => a.Category)
                     .Select(g => new InventorySummaryDto
-                        { GroupKey = g.Key, GroupLabel = g.Key, Count = g.Count() }),
+                        { GroupKey = g.Key, GroupLabel = g.Key, Count = g.Count() }).ToList(),
                 "status" => valid.GroupBy(a => a.Status.ToString())
                     .Select(g => new InventorySummaryDto
-                        { GroupKey = g.Key, GroupLabel = g.Key, Count = g.Count() }),
+                        { GroupKey = g.Key, GroupLabel = g.Key, Count = g.Count() }).ToList(),
                 "location" => valid.GroupBy(a => a.CurrentRoomCode)
                     .Select(g => new InventorySummaryDto
-                        { GroupKey = g.Key, GroupLabel = g.Key, Count = g.Count() }),
+                        { GroupKey = g.Key, GroupLabel = g.Key, Count = g.Count() }).ToList(),
                 _ => throw new ArgumentException(
                     $"Invalid groupBy value: {groupBy}. Valid values: category, status, location")
             };
         }
 
-        var inventoryCacheKey = _cacheService != null ? $"stats:inventory-summary:{groupBy}" : null;
-
-        if (inventoryCacheKey != null)
+        return await GetCachedOrFetchAsync($"stats:inventory-summary:{groupBy}", async () =>
         {
-            var cached = await _cacheService!.GetAsync<List<InventorySummaryDto>>(inventoryCacheKey);
-            if (cached != null) return cached;
-        }
+            var inventoryResult = groupBy switch
+            {
+                "category" => (await _assetRepository.GetCategoryCountsAsync())
+                    .Select(c => new InventorySummaryDto
+                        { GroupKey = c.Category, GroupLabel = c.Category, Count = c.Count }),
+                "status" => (await _assetRepository.GetStatusCountsAsync())
+                    .Select(s => new InventorySummaryDto
+                        { GroupKey = s.Status.ToString(), GroupLabel = s.Status.ToString(), Count = s.Count }),
+                "location" => (await _assetRepository.GetLocationCountsAsync())
+                    .Select(l => new InventorySummaryDto
+                        { GroupKey = l.RoomCode, GroupLabel = l.RoomCode, Count = l.Count }),
+                _ => throw new ArgumentException(
+                    $"Invalid groupBy value: {groupBy}. Valid values: category, status, location")
+            };
 
-        var inventoryResult = groupBy switch
-        {
-            "category" => (await _assetRepository.GetCategoryCountsAsync())
-                .Select(c => new InventorySummaryDto
-                    { GroupKey = c.Category, GroupLabel = c.Category, Count = c.Count }),
-            "status" => (await _assetRepository.GetStatusCountsAsync())
-                .Select(s => new InventorySummaryDto
-                    { GroupKey = s.Status.ToString(), GroupLabel = s.Status.ToString(), Count = s.Count }),
-            "location" => (await _assetRepository.GetLocationCountsAsync())
-                .Select(l => new InventorySummaryDto
-                    { GroupKey = l.RoomCode, GroupLabel = l.RoomCode, Count = l.Count }),
-            _ => throw new ArgumentException(
-                $"Invalid groupBy value: {groupBy}. Valid values: category, status, location")
-        };
-
-        var inventoryResultList = inventoryResult.ToList();
-
-        if (inventoryCacheKey != null)
-            await _cacheService!.SetAsync(inventoryCacheKey, inventoryResultList, TimeSpan.FromMinutes(5));
-
-        return inventoryResultList;
+            return inventoryResult.ToList();
+        });
     }
 
-    public async Task<IEnumerable<AssetHistoryDto>> GetAssetHistoryAsync(Guid assetId)
+    public async Task<List<AssetHistoryDto>> GetAssetHistoryAsync(Guid assetId)
     {
         var asset = await _assetRepository.GetByIdAsync(assetId);
         if (asset == null)
@@ -138,10 +110,10 @@ public class ReportingService : IReportingService
             NewValue = h.NewValue,
             ChangedBy = h.ChangedBy,
             ChangedAt = h.ChangedAt
-        });
+        }).ToList();
     }
 
-    public async Task<IEnumerable<ActivityLogDto>> GetActivityLogAsync(
+    public async Task<List<ActivityLogDto>> GetActivityLogAsync(
         DateTime? from, DateTime? to, Guid? userId)
     {
         var filter = new Asset.Filters.AssetFilter();
@@ -226,7 +198,7 @@ public class ReportingService : IReportingService
         }
     }
 
-    public async Task<IEnumerable<LocationReportDto>> GetLocationReportAsync(Guid? locationId)
+    public async Task<List<LocationReportDto>> GetLocationReportAsync(Guid? locationId)
     {
         var roomCounts = await _assetRepository.GetRoomAssetCountsAsync();
         var roomCategories = await _assetRepository.GetRoomCategoriesAsync();
@@ -249,7 +221,7 @@ public class ReportingService : IReportingService
                     RetiredAssets = g.Where(r => r.Status == AssetStatus.Retired).Sum(r => r.Count),
                     Categories = categoriesByRoom.GetValueOrDefault(g.Key, new List<string>())
                 };
-            });
+            }).ToList();
     }
 
     // ── Maintenance & Status Reports ──────────────────────────────────
@@ -319,34 +291,54 @@ public class ReportingService : IReportingService
 
     public async Task<List<StatusSummaryDto>> GetStatusSummaryAsync()
     {
+        return await GetCachedOrFetchAsync("stats:status-summary", async () =>
+        {
+            var statusCounts = await _assetRepository.GetStatusCountsAsync();
+            var total = statusCounts.Sum(s => s.Count);
+
+            if (total == 0) return new List<StatusSummaryDto>();
+
+            return statusCounts
+                .Select(s => new StatusSummaryDto
+                {
+                    Status = s.Status.ToString(),
+                    Count = s.Count,
+                    Percentage = Math.Round((double)s.Count / total * 100, 1)
+                })
+                .OrderByDescending(s => s.Count)
+                .ToList();
+        });
+    }
+
+    // ── Location-Based Reports ────────────────────────────────────────
+
+    private async Task<T> GetCachedOrFetchAsync<T>(string key, Func<Task<T>> factory, TimeSpan? expiry = null)
+        where T : class
+    {
         if (_cacheService != null)
         {
-            var cached = await _cacheService.GetAsync<List<StatusSummaryDto>>("stats:status-summary");
+            var cached = await _cacheService.GetAsync<T>(key);
             if (cached != null) return cached;
         }
 
-        var statusCounts = await _assetRepository.GetStatusCountsAsync();
-        var total = statusCounts.Sum(s => s.Count);
-
-        if (total == 0) return new List<StatusSummaryDto>();
-
-        var result = statusCounts
-            .Select(s => new StatusSummaryDto
-            {
-                Status = s.Status.ToString(),
-                Count = s.Count,
-                Percentage = Math.Round((double)s.Count / total * 100, 1)
-            })
-            .OrderByDescending(s => s.Count)
-            .ToList();
+        var result = await factory();
 
         if (_cacheService != null)
-            await _cacheService.SetAsync("stats:status-summary", result, TimeSpan.FromMinutes(5));
+            await _cacheService.SetAsync(key, result, expiry ?? TimeSpan.FromMinutes(5));
 
         return result;
     }
 
-    // ── Location-Based Reports ────────────────────────────────────────
+    private async Task<List<(Zone Zone, Building Building, Floor Floor, Room Room)>> FlattenHierarchyAsync()
+    {
+        var hierarchy = await _locationRepository!.GetFullHierarchyAsync();
+        return hierarchy
+            .SelectMany(s => s.Zones, (_, z) => z)
+            .SelectMany(z => z.Buildings, (z, b) => (Zone: z, Building: b))
+            .SelectMany(t => t.Building.Floors, (t, f) => (t.Zone, t.Building, Floor: f))
+            .SelectMany(t => t.Floor.Rooms, (t, r) => (t.Zone, t.Building, t.Floor, Room: r))
+            .ToList();
+    }
 
     public async Task<List<ZoneInventoryDto>> GetZoneInventoryAsync()
     {
@@ -355,42 +347,30 @@ public class ReportingService : IReportingService
             .GroupBy(r => r.RoomCode)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var hierarchy = await _locationRepository.GetFullHierarchyAsync();
-        var results = new List<ZoneInventoryDto>();
+        var rooms = await FlattenHierarchyAsync();
+        var results = new List<ZoneInventoryDto>(rooms.Count);
 
-        foreach (var site in hierarchy)
+        foreach (var (zone, building, floor, room) in rooms)
         {
-            foreach (var zone in site.Zones)
-            {
-                foreach (var building in zone.Buildings)
-                {
-                    foreach (var floor in building.Floors)
-                    {
-                        foreach (var room in floor.Rooms)
-                        {
-                            countsByRoom.TryGetValue(room.Code, out var roomStatuses);
-                            roomStatuses ??= new List<RoomAssetCountDto>();
+            countsByRoom.TryGetValue(room.Code, out var roomStatuses);
+            roomStatuses ??= new List<RoomAssetCountDto>();
 
-                            results.Add(new ZoneInventoryDto
-                            {
-                                ZoneName = zone.Name,
-                                BuildingName = building.Name,
-                                FloorLevel = floor.Level,
-                                RoomCode = room.Code,
-                                TotalAssets = roomStatuses.Sum(r => r.Count),
-                                ActiveCount = roomStatuses
-                                    .Where(r => r.Status == AssetStatus.Active).Sum(r => r.Count),
-                                MaintenanceCount = roomStatuses
-                                    .Where(r => r.Status == AssetStatus.Maintenance).Sum(r => r.Count),
-                                CriticalCount = roomStatuses
-                                    .Where(r => r.Status == AssetStatus.CriticalIssue).Sum(r => r.Count),
-                                InStockCount = roomStatuses
-                                    .Where(r => r.Status == AssetStatus.InStock).Sum(r => r.Count)
-                            });
-                        }
-                    }
-                }
-            }
+            results.Add(new ZoneInventoryDto
+            {
+                ZoneName = zone.Name,
+                BuildingName = building.Name,
+                FloorLevel = floor.Level,
+                RoomCode = room.Code,
+                TotalAssets = roomStatuses.Sum(r => r.Count),
+                ActiveCount = roomStatuses
+                    .Where(r => r.Status == AssetStatus.Active).Sum(r => r.Count),
+                MaintenanceCount = roomStatuses
+                    .Where(r => r.Status == AssetStatus.Maintenance).Sum(r => r.Count),
+                CriticalCount = roomStatuses
+                    .Where(r => r.Status == AssetStatus.CriticalIssue).Sum(r => r.Count),
+                InStockCount = roomStatuses
+                    .Where(r => r.Status == AssetStatus.InStock).Sum(r => r.Count)
+            });
         }
 
         return results;
@@ -408,7 +388,7 @@ public class ReportingService : IReportingService
             .GroupBy(c => c.RoomCode)
             .ToDictionary(g => g.Key, g => g.Select(c => c.Category).Distinct().ToList());
 
-        var hierarchy = await _locationRepository.GetFullHierarchyAsync();
+        var hierarchy = await _locationRepository!.GetFullHierarchyAsync();
         var results = new List<BuildingStocktakeDto>();
 
         foreach (var site in hierarchy)
@@ -452,35 +432,14 @@ public class ReportingService : IReportingService
 
         if (roomAssets.Count == 0) return null;
 
-        var hierarchy = await _locationRepository.GetFullHierarchyAsync();
-        string? zoneName = null;
-        string? buildingName = null;
-
-        foreach (var site in hierarchy)
-        {
-            foreach (var zone in site.Zones)
-            {
-                foreach (var building in zone.Buildings)
-                {
-                    foreach (var floor in building.Floors)
-                    {
-                        if (floor.Rooms.Any(r => r.Code.Equals(roomCode, StringComparison.OrdinalIgnoreCase)))
-                        {
-                            zoneName = zone.Name;
-                            buildingName = building.Name;
-                            goto found;
-                        }
-                    }
-                }
-            }
-        }
-        found:
+        var (zone, building, _, _) = (await FlattenHierarchyAsync())
+            .FirstOrDefault(r => r.Room.Code.Equals(roomCode, StringComparison.OrdinalIgnoreCase));
 
         return new RoomAuditDto
         {
             RoomCode = roomCode,
-            ZoneName = zoneName,
-            BuildingName = buildingName,
+            ZoneName = zone?.Name,
+            BuildingName = building?.Name,
             Assets = roomAssets.Select(a => new RoomAssetItem
             {
                 AssetTag = a.AssetTag,
@@ -500,33 +459,21 @@ public class ReportingService : IReportingService
             .GroupBy(r => r.RoomCode)
             .ToDictionary(g => g.Key, g => g.Sum(r => r.Count));
 
-        var hierarchy = await _locationRepository.GetFullHierarchyAsync();
-        var results = new List<EmptyRoomDto>();
+        var rooms = await FlattenHierarchyAsync();
+        var results = new List<EmptyRoomDto>(rooms.Count);
 
-        foreach (var site in hierarchy)
+        foreach (var (zone, building, _, room) in rooms)
         {
-            foreach (var zone in site.Zones)
+            roomAssetCounts.TryGetValue(room.Code, out var count);
+            if (count <= threshold)
             {
-                foreach (var building in zone.Buildings)
+                results.Add(new EmptyRoomDto
                 {
-                    foreach (var floor in building.Floors)
-                    {
-                        foreach (var room in floor.Rooms)
-                        {
-                            roomAssetCounts.TryGetValue(room.Code, out var count);
-                            if (count <= threshold)
-                            {
-                                results.Add(new EmptyRoomDto
-                                {
-                                    RoomCode = room.Code,
-                                    ZoneName = zone.Name,
-                                    BuildingName = building.Name,
-                                    AssetCount = count
-                                });
-                            }
-                        }
-                    }
-                }
+                    RoomCode = room.Code,
+                    ZoneName = zone.Name,
+                    BuildingName = building.Name,
+                    AssetCount = count
+                });
             }
         }
 
@@ -556,40 +503,32 @@ public class ReportingService : IReportingService
 
     public async Task<List<CategoryStocktakeDto>> GetCategoryStocktakeAsync()
     {
-        if (_cacheService != null)
+        return await GetCachedOrFetchAsync("stats:category-stocktake", async () =>
         {
-            var cached = await _cacheService.GetAsync<List<CategoryStocktakeDto>>("stats:category-stocktake");
-            if (cached != null) return cached;
-        }
+            var breakdown = await _assetRepository.GetCategoryStatusBreakdownAsync();
+            var total = breakdown.Sum(b => b.Count);
 
-        var breakdown = await _assetRepository.GetCategoryStatusBreakdownAsync();
-        var total = breakdown.Sum(b => b.Count);
+            if (total == 0) return new List<CategoryStocktakeDto>();
 
-        if (total == 0) return new List<CategoryStocktakeDto>();
-
-        var result = breakdown
-            .GroupBy(b => b.Category)
-            .Select(g => new CategoryStocktakeDto
-            {
-                Category = g.Key,
-                Count = g.Sum(b => b.Count),
-                Percentage = Math.Round((double)g.Sum(b => b.Count) / total * 100, 1),
-                StatusBreakdown = g
-                    .Select(b => new StatusCountItem
-                    {
-                        Status = b.Status.ToString(),
-                        Count = b.Count
-                    })
-                    .OrderByDescending(s => s.Count)
-                    .ToList()
-            })
-            .OrderByDescending(c => c.Count)
-            .ToList();
-
-        if (_cacheService != null)
-            await _cacheService.SetAsync("stats:category-stocktake", result, TimeSpan.FromMinutes(5));
-
-        return result;
+            return breakdown
+                .GroupBy(b => b.Category)
+                .Select(g => new CategoryStocktakeDto
+                {
+                    Category = g.Key,
+                    Count = g.Sum(b => b.Count),
+                    Percentage = Math.Round((double)g.Sum(b => b.Count) / total * 100, 1),
+                    StatusBreakdown = g
+                        .Select(b => new StatusCountItem
+                        {
+                            Status = b.Status.ToString(),
+                            Count = b.Count
+                        })
+                        .OrderByDescending(s => s.Count)
+                        .ToList()
+                })
+                .OrderByDescending(c => c.Count)
+                .ToList();
+        });
     }
 
     // ── Executive Reports ─────────────────────────────────────────────
@@ -601,7 +540,7 @@ public class ReportingService : IReportingService
             .GroupBy(r => r.RoomCode)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var hierarchy = await _locationRepository.GetFullHierarchyAsync();
+        var hierarchy = await _locationRepository!.GetFullHierarchyAsync();
         var results = new List<DepartmentReportDto>();
 
         foreach (var site in hierarchy)
@@ -639,5 +578,269 @@ public class ReportingService : IReportingService
         }
 
         return results.OrderByDescending(d => d.TotalAssets).ToList();
+    }
+
+    public async Task<LocationComprehensiveReportDto?> GetLocationReportAsync(
+        string scope, string scopeId, Guid? userId, UserRole role)
+    {
+        var hierarchy = await _locationRepository!.GetFullHierarchyAsync();
+        var (roomCodes, info) = ResolveLocationScope(scope, scopeId, hierarchy);
+        if (roomCodes == null) return null;
+
+        var allAssets = await _assetRepository.GetFilteredListAsync(new Asset.Filters.AssetFilter());
+        var currentAssets = allAssets
+            .Where(a => roomCodes.Contains(a.CurrentRoomCode, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        var assetIds = currentAssets.Select(a => a.Id).ToHashSet();
+        var assetHistory = await _historyService.GetByAssetIdsAsync(assetIds);
+        var locationHistory = await _locationRepository!.GetLocationHistoryByRoomCodesAsync(roomCodes);
+        var allActivity = await _activityLogService.GetAllActivityLogsAsync();
+        var userCache = new Dictionary<Guid, string>();
+
+        var historyEntries = await ComposeHistoryAsync(
+            currentAssets, assetHistory, locationHistory, allActivity, roomCodes, userCache);
+
+        return new LocationComprehensiveReportDto
+        {
+            Scope = scope,
+            ScopeId = scopeId,
+            ScopeName = scope.ToLowerInvariant() switch
+            {
+                "zone" => info.ZoneName ?? scopeId,
+                "building" => info.BuildingName ?? scopeId,
+                "room" => info.RoomName ?? info.RoomCode ?? scopeId,
+                _ => scopeId
+            },
+            Hierarchy = info,
+            TotalAssets = currentAssets.Count,
+            CurrentAssets = currentAssets.Select(MapAssetItem).ToList(),
+            History = historyEntries,
+            GeneratedAt = DateTime.UtcNow
+        };
+    }
+
+    private static (List<string>? RoomCodes, LocationHierarchyInfo Info) ResolveLocationScope(
+        string scope, string scopeId, List<Site> hierarchy)
+    {
+        var info = new LocationHierarchyInfo();
+
+        switch (scope.ToLowerInvariant())
+        {
+            case "room":
+            {
+                var found = FindRoomInHierarchy(hierarchy, scopeId);
+                if (found == null) return (null, info);
+
+                var (room, floor, building, zone, site) = found.Value;
+                info.SiteName = site?.Name;
+                info.ZoneName = zone?.Name;
+                info.BuildingName = building?.Name;
+                info.FloorLevel = floor?.Level;
+                info.RoomCode = room.Code;
+                info.RoomName = room.Name;
+                info.RoomDescription = room.Description;
+
+                return (new List<string> { room.Code }, info);
+            }
+
+            case "building":
+            {
+                var found = FindBuildingInHierarchy(hierarchy, scopeId);
+                if (found == null) return (null, info);
+
+                var (building, zone, site) = found.Value;
+                info.SiteName = site?.Name;
+                info.ZoneName = zone?.Name;
+                info.BuildingName = building.Name;
+
+                var roomCodes = building.Floors
+                    .SelectMany(f => f.Rooms)
+                    .Select(r => r.Code)
+                    .Distinct()
+                    .ToList();
+                return (roomCodes, info);
+            }
+
+            case "zone":
+            {
+                var found = FindZoneInHierarchy(hierarchy, scopeId);
+                if (found == null) return (null, info);
+
+                var (zone, site) = found.Value;
+                info.SiteName = site?.Name;
+                info.ZoneName = zone.Name;
+
+                var roomCodes = zone.Buildings
+                    .SelectMany(b => b.Floors)
+                    .SelectMany(f => f.Rooms)
+                    .Select(r => r.Code)
+                    .Distinct()
+                    .ToList();
+                return (roomCodes, info);
+            }
+
+            default:
+                throw new ArgumentException($"Invalid scope: {scope}. Valid values: zone, building, room");
+        }
+    }
+
+    private static (Room Room, Floor? Floor, Building? Building, Zone? Zone, Site? Site)? FindRoomInHierarchy(
+        List<Site> hierarchy, string roomCode)
+    {
+        var rooms = hierarchy
+            .SelectMany(s => s.Zones)
+            .SelectMany(z => z.Buildings)
+            .SelectMany(b => b.Floors)
+            .SelectMany(f => f.Rooms);
+
+        var room = rooms.FirstOrDefault(r => r.Code.Equals(roomCode, StringComparison.OrdinalIgnoreCase));
+        if (room == null) return null;
+
+        var floor = hierarchy
+            .SelectMany(s => s.Zones)
+            .SelectMany(z => z.Buildings)
+            .SelectMany(b => b.Floors)
+            .FirstOrDefault(f => f.Rooms.Any(r => r.Id == room.Id));
+
+        var building = hierarchy
+            .SelectMany(s => s.Zones)
+            .SelectMany(z => z.Buildings)
+            .FirstOrDefault(b => b.Floors.Any(f => f.Rooms.Any(r => r.Id == room.Id)));
+
+        var zone = hierarchy
+            .SelectMany(s => s.Zones)
+            .FirstOrDefault(z => z.Buildings.Any(b => b.Floors.Any(f => f.Rooms.Any(r => r.Id == room.Id))));
+
+        var site = hierarchy.FirstOrDefault(s => s.Zones.Any(z => z.Id == zone?.Id));
+
+        return (room, floor, building, zone, site);
+    }
+
+    private static (Building Building, Zone? Zone, Site? Site)? FindBuildingInHierarchy(
+        List<Site> hierarchy, string buildingId)
+    {
+        var building = hierarchy
+            .SelectMany(s => s.Zones)
+            .SelectMany(z => z.Buildings)
+            .FirstOrDefault(b => b.Id.ToString() == buildingId);
+
+        if (building == null) return null;
+
+        var zone = hierarchy
+            .SelectMany(s => s.Zones)
+            .FirstOrDefault(z => z.Buildings.Any(b => b.Id == building.Id));
+
+        var site = hierarchy.FirstOrDefault(s => s.Zones.Any(z => z.Id == zone?.Id));
+
+        return (building, zone, site);
+    }
+
+    private static (Zone Zone, Site? Site)? FindZoneInHierarchy(
+        List<Site> hierarchy, string zoneId)
+    {
+        var zone = hierarchy
+            .SelectMany(s => s.Zones)
+            .FirstOrDefault(z => z.Id.ToString() == zoneId);
+
+        if (zone == null) return null;
+
+        var site = hierarchy.FirstOrDefault(s => s.Zones.Any(z => z.Id == zone.Id));
+
+        return (zone, site);
+    }
+
+    private static LocationRoomAssetItem MapAssetItem(AssetEntity a)
+    {
+        return new LocationRoomAssetItem
+        {
+            AssetTag = a.AssetTag,
+            Name = a.Name,
+            Category = a.Category,
+            Status = a.Status,
+            SerialNumber = a.SerialNumber,
+            RfidTagId = a.RfidTagId,
+            BleId = a.BleId,
+            Manufacturer = a.Manufacturer,
+            Model = a.Model,
+            LastSeen = a.LastSeen,
+            InstallDate = a.InstallDate,
+            MaintenanceDueDate = a.MaintenanceDueDate
+        };
+    }
+
+    private async Task<List<LocationHistoryEntry>> ComposeHistoryAsync(
+        List<AssetEntity> currentAssets,
+        IEnumerable<AssetHistoryEntity> assetHistory,
+        List<AssetLocationHistory> locationHistory,
+        IEnumerable<ActivityLogDto> allActivity,
+        List<string> roomCodes,
+        Dictionary<Guid, string> userCache)
+    {
+        var entries = new List<LocationHistoryEntry>();
+
+        var assetDict = currentAssets.ToDictionary(a => a.Id);
+
+        foreach (var h in assetHistory)
+        {
+            assetDict.TryGetValue(h.AssetId, out var asset);
+            entries.Add(new LocationHistoryEntry
+            {
+                Timestamp = h.ChangedAt,
+                EventType = h.PropertyChanged,
+                AssetTag = asset?.AssetTag ?? "Unknown",
+                AssetName = asset?.Name ?? "Unknown",
+                OldValue = h.OldValue,
+                NewValue = h.NewValue,
+                ChangedBy = await ResolveUserNameAsync(h.ChangedBy, userCache),
+                Source = "user"
+            });
+        }
+
+        foreach (var h in locationHistory)
+        {
+            assetDict.TryGetValue(h.AssetId, out var asset);
+            entries.Add(new LocationHistoryEntry
+            {
+                Timestamp = h.CreatedAt,
+                EventType = h.PreviousRoomCode == null ? "asset_assigned" : "asset_moved",
+                AssetTag = asset?.AssetTag ?? "Unknown",
+                AssetName = asset?.Name ?? "Unknown",
+                OldValue = h.PreviousRoomCode,
+                NewValue = h.NewRoomCode,
+                ChangedBy = h.Source == "iot" ? "IoT System" : "User",
+                Source = h.Source
+            });
+        }
+
+        foreach (var a in allActivity.Where(a =>
+            roomCodes.Contains(a.OldValue, StringComparer.OrdinalIgnoreCase) ||
+            roomCodes.Contains(a.NewValue, StringComparer.OrdinalIgnoreCase)))
+        {
+            entries.Add(new LocationHistoryEntry
+            {
+                Timestamp = a.ChangedAt,
+                EventType = a.Action,
+                AssetTag = a.AssetTag ?? "",
+                AssetName = a.AssetName ?? "",
+                OldValue = a.OldValue,
+                NewValue = a.NewValue,
+                ChangedBy = a.ChangedByName ?? await ResolveUserNameAsync(a.ChangedBy, userCache),
+                Source = a.EntityType ?? "user"
+            });
+        }
+
+        return entries.OrderByDescending(e => e.Timestamp).ToList();
+    }
+
+    private async Task<string> ResolveUserNameAsync(Guid userId, Dictionary<Guid, string> cache)
+    {
+        if (cache.TryGetValue(userId, out var name))
+            return name;
+
+        var user = await _authRepository.GetByIdAsync(userId);
+        name = user?.Username ?? "Unknown User";
+        cache[userId] = name;
+        return name;
     }
 }

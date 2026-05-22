@@ -10,4 +10,5 @@ public interface IAssetHistoryRepository
     Task<AssetHistoryEntity> AddAsync(AssetHistoryEntity history);
     Task<IEnumerable<AssetHistoryEntity>> GetByAssetIdAsync(Guid assetId);
     Task<IEnumerable<AssetHistoryEntity>> GetAllAsync(DateTime? from = null, DateTime? to = null);
+    Task<IEnumerable<AssetHistoryEntity>> GetByAssetIdsAsync(HashSet<Guid> assetIds, DateTime? from = null, DateTime? to = null);
 }

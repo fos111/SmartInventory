@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
+using SmartInventory.Application.Asset.DTOs;
 using SmartInventory.Application.Asset.DTOs.Reports;
 using SmartInventory.Application.Asset.Interfaces;
 using SmartInventory.Application.Asset.Services;
@@ -396,5 +397,318 @@ public class ReportingServiceNewReportsTests
         result.Should().NotBeEmpty();
         result.Should().AllSatisfy(d => d.TotalAssets.Should().BeGreaterThan(0));
         result.Should().AllSatisfy(d => d.AvailabilityRate.Should().BeInRange(0, 100));
+    }
+
+    // ── Location-Based Comprehensive Report Tests ───────────────────
+
+    [Fact]
+    public async Task GetLocationReportAsync_WithValidRoom_ReturnsRoomAssetsAndHistory()
+    {
+        SetupSingleRoomHierarchy("R-001", "Server Room");
+        var roomCode = "R-001";
+        var assets = CreateLocationTestAssets(roomCode);
+        var firstAssetId = assets[0].Id;
+
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(assets);
+
+        _historyServiceMock.Setup(r => r.GetByAssetIdsAsync(It.IsAny<HashSet<Guid>>(), It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
+            .ReturnsAsync(new List<SmartInventory.Domain.Asset.Entities.AssetHistory>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    AssetId = firstAssetId,
+                    PropertyChanged = "Status",
+                    OldValue = "InStock",
+                    NewValue = "Active",
+                    ChangedBy = Guid.NewGuid(),
+                    ChangedAt = DateTime.UtcNow.AddDays(-1)
+                }
+            });
+
+        _locationRepositoryMock.Setup(r => r.GetLocationHistoryByRoomCodesAsync(It.IsAny<List<string>>()))
+            .ReturnsAsync(new List<AssetLocationHistory>());
+
+        _activityLogServiceMock.Setup(r => r.GetAllActivityLogsAsync(
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
+            .ReturnsAsync(new List<ActivityLogDto>());
+
+        _authRepositoryMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<System.Threading.CancellationToken>()))
+            .ReturnsAsync(new Domain.Auth.Entities.User { Id = Guid.NewGuid(), Username = "TestUser" });
+
+        var result = await _service.GetLocationReportAsync("room", roomCode, null, UserRole.Supervisor);
+
+        result.Should().NotBeNull();
+        result!.Scope.Should().Be("room");
+        result.ScopeName.Should().NotBeNullOrEmpty();
+        result.CurrentAssets.Should().HaveCount(2);
+        result.TotalAssets.Should().Be(2);
+        result.Hierarchy.RoomCode.Should().Be("R-001");
+        result.Hierarchy.ZoneName.Should().Be("IT Department");
+    }
+
+    [Fact]
+    public async Task GetLocationReportAsync_WithUnknownRoom_ReturnsNull()
+    {
+        SetupSingleRoomHierarchy("R-001", "Server Room");
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(new List<AssetEntity>());
+
+        var result = await _service.GetLocationReportAsync("room", "NONEXISTENT", null, UserRole.Supervisor);
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetLocationReportAsync_WithValidZone_ReturnsZoneData()
+    {
+        var roomCode = "R-001";
+        SetupSingleRoomHierarchy(roomCode, "Server Room");
+        var assets = CreateLocationTestAssets(roomCode);
+
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(assets);
+
+        _historyServiceMock.Setup(r => r.GetByAssetIdsAsync(It.IsAny<HashSet<Guid>>(), It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
+            .ReturnsAsync(new List<SmartInventory.Domain.Asset.Entities.AssetHistory>());
+
+        _locationRepositoryMock.Setup(r => r.GetLocationHistoryByRoomCodesAsync(It.IsAny<List<string>>()))
+            .ReturnsAsync(new List<AssetLocationHistory>());
+
+        _activityLogServiceMock.Setup(r => r.GetAllActivityLogsAsync(
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
+            .ReturnsAsync(new List<ActivityLogDto>());
+
+        _authRepositoryMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<System.Threading.CancellationToken>()))
+            .ReturnsAsync(new Domain.Auth.Entities.User { Id = Guid.NewGuid(), Username = "TestUser" });
+
+        var result = await _service.GetLocationReportAsync("zone", _zoneIdForHierarchy!.Value.ToString(), null, UserRole.Supervisor);
+
+        result.Should().NotBeNull();
+        result!.Scope.Should().Be("zone");
+        result.ScopeName.Should().Be("IT Department");
+        result.CurrentAssets.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task GetLocationReportAsync_WithUnknownZone_ReturnsNull()
+    {
+        SetupSingleRoomHierarchy("R-001", "Server Room");
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(new List<AssetEntity>());
+
+        var result = await _service.GetLocationReportAsync("zone", Guid.NewGuid().ToString(), null, UserRole.Supervisor);
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetLocationReportAsync_WithValidBuilding_ReturnsBuildingData()
+    {
+        var roomCode = "R-001";
+        var roomCode2 = "R-002";
+        SetupSingleRoomHierarchy(roomCode, "Server Room");
+        var assets = CreateLocationTestAssets(roomCode);
+        var assets2 = CreateLocationTestAssets(roomCode2);
+        assets.AddRange(assets2);
+
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(assets);
+
+        _historyServiceMock.Setup(r => r.GetByAssetIdsAsync(It.IsAny<HashSet<Guid>>(), It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
+            .ReturnsAsync(new List<SmartInventory.Domain.Asset.Entities.AssetHistory>());
+
+        _locationRepositoryMock.Setup(r => r.GetLocationHistoryByRoomCodesAsync(It.IsAny<List<string>>()))
+            .ReturnsAsync(new List<AssetLocationHistory>());
+
+        _activityLogServiceMock.Setup(r => r.GetAllActivityLogsAsync(
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
+            .ReturnsAsync(new List<ActivityLogDto>());
+
+        _authRepositoryMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<System.Threading.CancellationToken>()))
+            .ReturnsAsync(new Domain.Auth.Entities.User { Id = Guid.NewGuid(), Username = "TestUser" });
+
+        var result = await _service.GetLocationReportAsync("building", _buildingIdForHierarchy!.Value.ToString(), null, UserRole.Supervisor);
+
+        result.Should().NotBeNull();
+        result!.Scope.Should().Be("building");
+        result.ScopeName.Should().Be("Building A");
+        result.CurrentAssets.Should().HaveCount(4);
+    }
+
+    [Fact]
+    public async Task GetLocationReportAsync_IncludesHistory_WhenAvailable()
+    {
+        SetupSingleRoomHierarchy("R-001", "Server Room");
+        var roomCode = "R-001";
+        var assetId = Guid.NewGuid();
+        var assets = new List<AssetEntity>
+        {
+            new()
+            {
+                Id = assetId,
+                AssetTag = "TAG-001",
+                Name = "Laptop",
+                Category = "Electronics",
+                Status = AssetStatus.Active,
+                CurrentRoomCode = roomCode,
+                SerialNumber = "SN-001",
+                Manufacturer = "Dell",
+                Model = "Latitude"
+            }
+        };
+
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(assets);
+
+        _historyServiceMock.Setup(r => r.GetByAssetIdsAsync(It.IsAny<HashSet<Guid>>(), It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
+            .ReturnsAsync(new List<SmartInventory.Domain.Asset.Entities.AssetHistory>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    AssetId = assetId,
+                    PropertyChanged = "Status",
+                    OldValue = "InStock",
+                    NewValue = "Active",
+                    ChangedBy = Guid.NewGuid(),
+                    ChangedAt = DateTime.UtcNow.AddDays(-1)
+                }
+            });
+
+        _locationRepositoryMock.Setup(r => r.GetLocationHistoryByRoomCodesAsync(It.IsAny<List<string>>()))
+            .ReturnsAsync(new List<AssetLocationHistory>());
+
+        _activityLogServiceMock.Setup(r => r.GetAllActivityLogsAsync(
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
+            .ReturnsAsync(new List<ActivityLogDto>());
+
+        _authRepositoryMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<System.Threading.CancellationToken>()))
+            .ReturnsAsync(new Domain.Auth.Entities.User { Id = Guid.NewGuid(), Username = "TestUser" });
+
+        var result = await _service.GetLocationReportAsync("room", roomCode, null, UserRole.Supervisor);
+
+        result.Should().NotBeNull();
+        result!.History.Should().NotBeEmpty();
+        result.History.Should().Contain(h => h.EventType == "Status");
+    }
+
+    [Fact]
+    public async Task GetLocationReportAsync_NonSupervisor_FiltersAssetsByRoom()
+    {
+        SetupSingleRoomHierarchy("R-001", "Server Room");
+        var roomCode = "R-001";
+
+        var assetsInRoom = CreateLocationTestAssets(roomCode);
+        var assetOutside = new AssetEntity
+        {
+            Id = Guid.NewGuid(),
+            AssetTag = "TAG-OUTSIDE",
+            Name = "Unassigned Item",
+            Category = "Other",
+            Status = AssetStatus.InStock,
+            CurrentRoomCode = ""
+        };
+        assetsInRoom.Add(assetOutside);
+
+        _assetRepositoryMock.Setup(r => r.GetFilteredListAsync(It.IsAny<Asset.Filters.AssetFilter>()))
+            .ReturnsAsync(assetsInRoom);
+
+        _historyServiceMock.Setup(r => r.GetByAssetIdsAsync(It.IsAny<HashSet<Guid>>(), It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
+            .ReturnsAsync(new List<SmartInventory.Domain.Asset.Entities.AssetHistory>());
+
+        _locationRepositoryMock.Setup(r => r.GetLocationHistoryByRoomCodesAsync(It.IsAny<List<string>>()))
+            .ReturnsAsync(new List<AssetLocationHistory>());
+
+        _activityLogServiceMock.Setup(r => r.GetAllActivityLogsAsync(
+                It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
+            .ReturnsAsync(new List<ActivityLogDto>());
+
+        _authRepositoryMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<System.Threading.CancellationToken>()))
+            .ReturnsAsync(new Domain.Auth.Entities.User { Id = Guid.NewGuid(), Username = "TestUser" });
+
+        var result = await _service.GetLocationReportAsync("room", roomCode, null, UserRole.Supervisor);
+
+        result.Should().NotBeNull();
+        result!.CurrentAssets.Should().HaveCount(2);
+        result.CurrentAssets.Should().NotContain(a => a.AssetTag == "TAG-OUTSIDE");
+    }
+
+    private static List<AssetEntity> CreateLocationTestAssets(string roomCode)
+    {
+        return new List<AssetEntity>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                AssetTag = "TAG-001",
+                Name = "Laptop",
+                Category = "Electronics",
+                Status = AssetStatus.Active,
+                CurrentRoomCode = roomCode,
+                SerialNumber = "SN-001",
+                Manufacturer = "Dell",
+                Model = "Latitude"
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
+                AssetTag = "TAG-002",
+                Name = "Monitor",
+                Category = "Electronics",
+                Status = AssetStatus.InStock,
+                CurrentRoomCode = roomCode,
+                SerialNumber = "SN-002",
+                Manufacturer = "Samsung"
+            }
+        };
+    }
+
+    private Guid? _buildingIdForHierarchy;
+    private Guid? _zoneIdForHierarchy;
+
+    private void SetupSingleRoomHierarchy(string roomCode, string roomName)
+    {
+        _buildingIdForHierarchy = Guid.NewGuid();
+        _zoneIdForHierarchy = Guid.NewGuid();
+        var site = new Site
+        {
+            Id = Guid.NewGuid(),
+            Code = "SITE-01",
+            Name = "Main Site",
+            Zones = new List<Zone>
+            {
+                new()
+                {
+                    Id = _zoneIdForHierarchy.Value,
+                    Code = "Z-IT",
+                    Name = "IT Department",
+                    Buildings = new List<Building>
+                    {
+                        new()
+                        {
+                            Id = _buildingIdForHierarchy.Value,
+                            Code = "B-A",
+                            Name = "Building A",
+                            Floors = new List<Floor>
+                            {
+                                new()
+                                {
+                                    Id = Guid.NewGuid(),
+                                    Level = 1,
+                                    Rooms = new List<Room>
+                                    {
+                                        new() { Id = Guid.NewGuid(), Code = roomCode, Name = roomName },
+                                        new() { Id = Guid.NewGuid(), Code = "R-002", Name = "Meeting Room" },
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        _locationRepositoryMock.Setup(r => r.GetFullHierarchyAsync())
+            .ReturnsAsync(new List<Site> { site });
     }
 }
