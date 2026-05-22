@@ -200,7 +200,7 @@ namespace SmartInventory.API.Controllers
         {
             var data = await _reportingService.GetMaintenanceForecastAsync(days);
             if (!data.Any()) return NotFound(new { message = "No data to export" });
-            var pdf = _pdfReportService.GenerateMaintenanceForecast(data, days);
+            var pdf = await _pdfReportService.GenerateMaintenanceForecastAsync(data, days);
             return File(pdf, "application/pdf", $"maintenance-forecast-{days}d.pdf");
         }
 
@@ -216,7 +216,7 @@ namespace SmartInventory.API.Controllers
         {
             var data = await _reportingService.GetOverdueMaintenanceAsync();
             if (!data.Any()) return NotFound(new { message = "No data to export" });
-            var pdf = _pdfReportService.GenerateOverdueMaintenance(data);
+            var pdf = await _pdfReportService.GenerateOverdueMaintenanceAsync(data);
             return File(pdf, "application/pdf", "overdue-maintenance.pdf");
         }
 
@@ -232,7 +232,7 @@ namespace SmartInventory.API.Controllers
         {
             var data = await _reportingService.GetCriticalIssuesAsync();
             if (!data.Any()) return NotFound(new { message = "No data to export" });
-            var pdf = _pdfReportService.GenerateCriticalIssues(data);
+            var pdf = await _pdfReportService.GenerateCriticalIssuesAsync(data);
             return File(pdf, "application/pdf", "critical-issues.pdf");
         }
 
@@ -248,7 +248,7 @@ namespace SmartInventory.API.Controllers
         {
             var data = await _reportingService.GetStatusSummaryAsync();
             if (!data.Any()) return NotFound(new { message = "No data to export" });
-            var pdf = _pdfReportService.GenerateStatusSummary(data);
+            var pdf = await _pdfReportService.GenerateStatusSummaryAsync(data);
             return File(pdf, "application/pdf", "status-summary.pdf");
         }
 
@@ -266,7 +266,7 @@ namespace SmartInventory.API.Controllers
         {
             var data = await _reportingService.GetZoneInventoryAsync();
             if (!data.Any()) return NotFound(new { message = "No data to export" });
-            var pdf = _pdfReportService.GenerateZoneInventory(data);
+            var pdf = await _pdfReportService.GenerateZoneInventoryAsync(data);
             return File(pdf, "application/pdf", "zone-inventory.pdf");
         }
 
@@ -282,7 +282,7 @@ namespace SmartInventory.API.Controllers
         {
             var data = await _reportingService.GetBuildingStocktakeAsync();
             if (!data.Any()) return NotFound(new { message = "No data to export" });
-            var pdf = _pdfReportService.GenerateBuildingStocktake(data);
+            var pdf = await _pdfReportService.GenerateBuildingStocktakeAsync(data);
             return File(pdf, "application/pdf", "building-stocktake.pdf");
         }
 
@@ -299,7 +299,7 @@ namespace SmartInventory.API.Controllers
         {
             var data = await _reportingService.GetRoomAuditAsync(roomCode);
             if (data == null) return NotFound(new { message = "Room not found" });
-            var pdf = _pdfReportService.GenerateRoomAudit(data);
+            var pdf = await _pdfReportService.GenerateRoomAuditAsync(data);
             return File(pdf, "application/pdf", $"room-audit-{roomCode}.pdf");
         }
 
@@ -315,7 +315,7 @@ namespace SmartInventory.API.Controllers
         {
             var data = await _reportingService.GetEmptyRoomsAsync(threshold);
             if (!data.Any()) return NotFound(new { message = "No data to export" });
-            var pdf = _pdfReportService.GenerateEmptyRooms(data);
+            var pdf = await _pdfReportService.GenerateEmptyRoomsAsync(data);
             return File(pdf, "application/pdf", "empty-rooms.pdf");
         }
 
@@ -333,7 +333,7 @@ namespace SmartInventory.API.Controllers
         {
             var data = await _reportingService.GetLocationDiscrepanciesAsync();
             if (!data.Any()) return NotFound(new { message = "No data to export" });
-            var pdf = _pdfReportService.GenerateLocationDiscrepancies(data);
+            var pdf = await _pdfReportService.GenerateLocationDiscrepanciesAsync(data);
             return File(pdf, "application/pdf", "location-discrepancies.pdf");
         }
 
@@ -349,7 +349,7 @@ namespace SmartInventory.API.Controllers
         {
             var data = await _reportingService.GetCategoryStocktakeAsync();
             if (!data.Any()) return NotFound(new { message = "No data to export" });
-            var pdf = _pdfReportService.GenerateCategoryStocktake(data);
+            var pdf = await _pdfReportService.GenerateCategoryStocktakeAsync(data);
             return File(pdf, "application/pdf", "category-stocktake.pdf");
         }
 
@@ -367,8 +367,67 @@ namespace SmartInventory.API.Controllers
         {
             var data = await _reportingService.GetDepartmentReportsAsync();
             if (!data.Any()) return NotFound(new { message = "No data to export" });
-            var pdf = _pdfReportService.GenerateDepartmentReport(data);
+            var pdf = await _pdfReportService.GenerateDepartmentReportAsync(data);
             return File(pdf, "application/pdf", "department-report.pdf");
+        }
+
+        // ── Location-Based Comprehensive Reports ──────────────────────
+
+        [HttpGet("location/zone/{zoneId:guid}")]
+        [Authorize(Policy = "SupervisorOnly")]
+        public async Task<ActionResult> GetZoneLocationReport(Guid zoneId)
+        {
+            var data = await _reportingService.GetLocationReportAsync("zone", zoneId.ToString(), GetUserId(), GetUserRole());
+            if (data == null) return NotFound(new { message = "Zone not found" });
+            return Ok(data);
+        }
+
+        [HttpGet("location/building/{buildingId:guid}")]
+        [Authorize(Policy = "SupervisorOnly")]
+        public async Task<ActionResult> GetBuildingLocationReport(Guid buildingId)
+        {
+            var data = await _reportingService.GetLocationReportAsync("building", buildingId.ToString(), GetUserId(), GetUserRole());
+            if (data == null) return NotFound(new { message = "Building not found" });
+            return Ok(data);
+        }
+
+        [HttpGet("location/room/{roomCode}")]
+        [Authorize(Policy = "SupervisorOnly")]
+        public async Task<ActionResult> GetRoomLocationReport(string roomCode)
+        {
+            var data = await _reportingService.GetLocationReportAsync("room", roomCode, GetUserId(), GetUserRole());
+            if (data == null) return NotFound(new { message = "Room not found" });
+            return Ok(data);
+        }
+
+        [HttpGet("location/export/zone/{zoneId:guid}")]
+        [Authorize(Policy = "SupervisorOnly")]
+        public async Task<ActionResult> ExportZoneLocationReport(Guid zoneId)
+        {
+            var data = await _reportingService.GetLocationReportAsync("zone", zoneId.ToString(), GetUserId(), GetUserRole());
+            if (data == null) return NotFound(new { message = "Zone not found" });
+            var pdf = await _pdfReportService.GenerateLocationReportAsync(data);
+            return File(pdf, "application/pdf", $"location-report-zone-{zoneId}.pdf");
+        }
+
+        [HttpGet("location/export/building/{buildingId:guid}")]
+        [Authorize(Policy = "SupervisorOnly")]
+        public async Task<ActionResult> ExportBuildingLocationReport(Guid buildingId)
+        {
+            var data = await _reportingService.GetLocationReportAsync("building", buildingId.ToString(), GetUserId(), GetUserRole());
+            if (data == null) return NotFound(new { message = "Building not found" });
+            var pdf = await _pdfReportService.GenerateLocationReportAsync(data);
+            return File(pdf, "application/pdf", $"location-report-building-{buildingId}.pdf");
+        }
+
+        [HttpGet("location/export/room/{roomCode}")]
+        [Authorize(Policy = "SupervisorOnly")]
+        public async Task<ActionResult> ExportRoomLocationReport(string roomCode)
+        {
+            var data = await _reportingService.GetLocationReportAsync("room", roomCode, GetUserId(), GetUserRole());
+            if (data == null) return NotFound(new { message = "Room not found" });
+            var pdf = await _pdfReportService.GenerateLocationReportAsync(data);
+            return File(pdf, "application/pdf", $"location-report-room-{roomCode}.pdf");
         }
     }
 }

@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using QRCoder;
 using SmartInventory.Application.Asset.Interfaces;
+using SmartInventory.Application.Caching;
 using SmartInventory.Application.Location.Interfaces;
 using SmartInventory.Application.Mobile.Reports.DTOs;
 using SmartInventory.Application.Mobile.Reports.Interfaces;
@@ -16,17 +18,20 @@ public class MobileReportService : IMobileReportService
     private readonly ILocationService _locationService;
     private readonly ILocationRepository _locationRepo;
     private readonly IPdfReportService _pdfReportService;
+    private readonly IBlobCacheService? _blobCacheService;
 
     public MobileReportService(
         IReportingService reportingService,
         ILocationService locationService,
         ILocationRepository locationRepo,
-        IPdfReportService pdfReportService)
+        IPdfReportService pdfReportService,
+        IBlobCacheService? blobCacheService = null)
     {
         _reportingService = reportingService;
         _locationService = locationService;
         _locationRepo = locationRepo;
         _pdfReportService = pdfReportService;
+        _blobCacheService = blobCacheService;
     }
 
     public async Task<byte[]?> GetRoomFicheAsync(string roomCode)
@@ -35,7 +40,7 @@ public class MobileReportService : IMobileReportService
         if (audit == null)
             return null;
 
-        return _pdfReportService.GenerateRoomAudit(audit);
+        return await _pdfReportService.GenerateRoomAuditAsync(audit);
     }
 
     public async Task<byte[]?> GetRoomJournalAsync(string roomCode, DateTime? from, DateTime? to)
@@ -74,7 +79,7 @@ public class MobileReportService : IMobileReportService
             Entries = filteredEntries
         };
 
-        return _pdfReportService.GenerateRoomJournal(journal);
+        return await _pdfReportService.GenerateRoomJournalAsync(journal);
     }
 
     public async Task<byte[]?> GetDepartmentQrAsync(Guid deptId)
@@ -83,12 +88,14 @@ public class MobileReportService : IMobileReportService
         if (zone == null)
             return null;
 
-        return GenerateQrCode($"DEPT:{zone.Code}");
+        var cacheKey = $"qrcodes/department-{deptId}.png";
+        return await GetOrGenerateQrAsync(cacheKey, $"DEPT:{zone.Code}");
     }
 
-    public Task<byte[]> GetDepartmentQrByCodeAsync(string code)
+    public async Task<byte[]> GetDepartmentQrByCodeAsync(string code)
     {
-        return Task.FromResult(GenerateQrCode($"DEPT:{code}"));
+        var cacheKey = $"qrcodes/department-code-{code}.png";
+        return await GetOrGenerateQrAsync(cacheKey, $"DEPT:{code}") ?? [];
     }
 
     public async Task<byte[]?> GetRoomQrAsync(string roomCode)
@@ -97,7 +104,8 @@ public class MobileReportService : IMobileReportService
         if (room == null)
             return null;
 
-        return GenerateQrCode($"ROOM:{roomCode}");
+        var cacheKey = $"qrcodes/room-{roomCode}.png";
+        return await GetOrGenerateQrAsync(cacheKey, $"ROOM:{roomCode}");
     }
 
     public async Task<byte[]> GetIsetQrAsync()
@@ -111,7 +119,29 @@ public class MobileReportService : IMobileReportService
             ? $"ISET:{string.Join(",", zoneCodes)}"
             : "ISET:";
 
-        return GenerateQrCode(data);
+        return await GetOrGenerateQrAsync("qrcodes/iset.png", data) ?? [];
+    }
+
+    private async Task<byte[]?> GetOrGenerateQrAsync(string cacheKey, string qrData)
+    {
+        if (_blobCacheService != null)
+        {
+            var cached = await _blobCacheService.GetAsync(cacheKey);
+            if (cached != null) return cached;
+        }
+
+        var bytes = GenerateQrCode(qrData);
+
+        if (_blobCacheService != null)
+            await _blobCacheService.SetAsync(cacheKey, bytes, "image/png");
+
+        return bytes;
+    }
+
+    public async Task InvalidateIsetQrAsync()
+    {
+        if (_blobCacheService != null)
+            await _blobCacheService.DeleteAsync("qrcodes/iset.png");
     }
 
     private static byte[] GenerateQrCode(string data)

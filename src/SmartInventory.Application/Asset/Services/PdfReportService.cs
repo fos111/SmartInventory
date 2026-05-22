@@ -104,7 +104,7 @@ public class PdfReportService : IPdfReportService
 
     // ── Maintenance & Status Reports ──────────────────────────────
 
-    public byte[] GenerateMaintenanceForecast(List<MaintenanceForecastDto> data, int days)
+    public Task<byte[]> GenerateMaintenanceForecastAsync(List<MaintenanceForecastDto> data, int days, CancellationToken ct = default)
     {
         var document = Document.Create(container =>
         {
@@ -181,10 +181,10 @@ public class PdfReportService : IPdfReportService
             });
         });
 
-        return ToPdf(document);
+        return Task.FromResult(ToPdf(document));
     }
 
-    public byte[] GenerateOverdueMaintenance(List<OverdueMaintenanceDto> data)
+    public Task<byte[]> GenerateOverdueMaintenanceAsync(List<OverdueMaintenanceDto> data, CancellationToken ct = default)
     {
         var document = Document.Create(container =>
         {
@@ -260,10 +260,10 @@ public class PdfReportService : IPdfReportService
             });
         });
 
-        return ToPdf(document);
+        return Task.FromResult(ToPdf(document));
     }
 
-    public byte[] GenerateCriticalIssues(List<CriticalIssueDto> data)
+    public Task<byte[]> GenerateCriticalIssuesAsync(List<CriticalIssueDto> data, CancellationToken ct = default)
     {
         var document = Document.Create(container =>
         {
@@ -306,7 +306,7 @@ public class PdfReportService : IPdfReportService
             });
         });
 
-        return ToPdf(document);
+        return Task.FromResult(ToPdf(document));
     }
 
     private void RenderAssetTable(ColumnDescriptor col, List<CriticalIssueDto> items)
@@ -356,7 +356,7 @@ public class PdfReportService : IPdfReportService
         });
     }
 
-    public byte[] GenerateStatusSummary(List<StatusSummaryDto> data)
+    public Task<byte[]> GenerateStatusSummaryAsync(List<StatusSummaryDto> data, CancellationToken ct = default)
     {
         var document = Document.Create(container =>
         {
@@ -419,12 +419,12 @@ public class PdfReportService : IPdfReportService
             });
         });
 
-        return ToPdf(document);
+        return Task.FromResult(ToPdf(document));
     }
 
     // ── Location-Based Reports ────────────────────────────────────
 
-    public byte[] GenerateZoneInventory(List<ZoneInventoryDto> data)
+    public Task<byte[]> GenerateZoneInventoryAsync(List<ZoneInventoryDto> data, CancellationToken ct = default)
     {
         var document = Document.Create(container =>
         {
@@ -508,10 +508,10 @@ public class PdfReportService : IPdfReportService
             });
         });
 
-        return ToPdf(document);
+        return Task.FromResult(ToPdf(document));
     }
 
-    public byte[] GenerateBuildingStocktake(List<BuildingStocktakeDto> data)
+    public Task<byte[]> GenerateBuildingStocktakeAsync(List<BuildingStocktakeDto> data, CancellationToken ct = default)
     {
         var document = Document.Create(container =>
         {
@@ -573,10 +573,10 @@ public class PdfReportService : IPdfReportService
             });
         });
 
-        return ToPdf(document);
+        return Task.FromResult(ToPdf(document));
     }
 
-    public byte[] GenerateRoomAudit(RoomAuditDto data)
+    public Task<byte[]> GenerateRoomAuditAsync(RoomAuditDto data, CancellationToken ct = default)
     {
         var document = Document.Create(container =>
         {
@@ -664,10 +664,10 @@ public class PdfReportService : IPdfReportService
             });
         });
 
-        return ToPdf(document);
+        return Task.FromResult(ToPdf(document));
     }
 
-    public byte[] GenerateEmptyRooms(List<EmptyRoomDto> data)
+    public Task<byte[]> GenerateEmptyRoomsAsync(List<EmptyRoomDto> data, CancellationToken ct = default)
     {
         var document = Document.Create(container =>
         {
@@ -736,12 +736,12 @@ public class PdfReportService : IPdfReportService
             });
         });
 
-        return ToPdf(document);
+        return Task.FromResult(ToPdf(document));
     }
 
     // ── Audit & Compliance Reports ────────────────────────────────
 
-    public byte[] GenerateLocationDiscrepancies(List<LocationDiscrepancyDto> data)
+    public Task<byte[]> GenerateLocationDiscrepanciesAsync(List<LocationDiscrepancyDto> data, CancellationToken ct = default)
     {
         var document = Document.Create(container =>
         {
@@ -810,10 +810,10 @@ public class PdfReportService : IPdfReportService
             });
         });
 
-        return ToPdf(document);
+        return Task.FromResult(ToPdf(document));
     }
 
-    public byte[] GenerateCategoryStocktake(List<CategoryStocktakeDto> data)
+    public Task<byte[]> GenerateCategoryStocktakeAsync(List<CategoryStocktakeDto> data, CancellationToken ct = default)
     {
         var document = Document.Create(container =>
         {
@@ -873,12 +873,12 @@ public class PdfReportService : IPdfReportService
             });
         });
 
-        return ToPdf(document);
+        return Task.FromResult(ToPdf(document));
     }
 
     // ── Executive Reports ─────────────────────────────────────────
 
-    public byte[] GenerateDepartmentReport(List<DepartmentReportDto> data)
+    public Task<byte[]> GenerateDepartmentReportAsync(List<DepartmentReportDto> data, CancellationToken ct = default)
     {
         var document = Document.Create(container =>
         {
@@ -953,10 +953,10 @@ public class PdfReportService : IPdfReportService
             });
         });
 
-        return ToPdf(document);
+        return Task.FromResult(ToPdf(document));
     }
 
-    public byte[] GenerateRoomJournal(RoomJournalDto data)
+    public Task<byte[]> GenerateRoomJournalAsync(RoomJournalDto data, CancellationToken ct = default)
     {
         var document = Document.Create(container =>
         {
@@ -1055,6 +1055,162 @@ public class PdfReportService : IPdfReportService
             });
         });
 
-        return ToPdf(document);
+        return Task.FromResult(ToPdf(document));
+    }
+
+    public Task<byte[]> GenerateLocationReportAsync(LocationComprehensiveReportDto data, CancellationToken ct = default)
+    {
+        var scopeLabel = data.Scope switch
+        {
+            "zone" => "Zone (Department)",
+            "building" => "Building",
+            "room" => "Room",
+            _ => data.Scope
+        };
+
+        var document = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4.Landscape());
+                page.Margin(25);
+
+                ComposeDefaultHeader(page, $"{scopeLabel} Report - {data.ScopeName}", "Industrial Asset Management");
+                ComposeDefaultFooter(page, 0);
+
+                page.Content().PaddingTop(10).Column(col =>
+                {
+                    col.Spacing(8);
+
+                    col.Item().Row(row =>
+                    {
+                        row.RelativeItem().Column(c =>
+                        {
+                            c.Item().Text($"{scopeLabel}: {data.ScopeName}").FontSize(14).Bold().FontColor(Slate900);
+                            c.Item().Text(BuildBreadcrumb(data.Hierarchy)).FontSize(8).FontColor(Slate600);
+                        });
+                        row.ConstantItem(100).Column(c =>
+                        {
+                            c.Item().AlignRight().Text($"{data.TotalAssets} assets").FontSize(14).Bold().FontColor(AccentBlue);
+                        });
+                    });
+
+                    col.Item().Height(2).Background(AccentBlue);
+
+                    col.Item().PaddingTop(4).Text($"Current Assets ({data.CurrentAssets.Count})")
+                        .FontSize(12).Bold().FontColor(Slate900);
+
+                    if (data.CurrentAssets.Count > 0)
+                    {
+                        col.Item().Table(table =>
+                        {
+                            table.ColumnsDefinition(c =>
+                            {
+                                c.ConstantColumn(22);
+                                c.RelativeColumn(1.5f);
+                                c.RelativeColumn(2);
+                                c.RelativeColumn(1);
+                                c.RelativeColumn(1);
+                                c.RelativeColumn(1);
+                                c.RelativeColumn(1.5f);
+                                c.RelativeColumn(1.5f);
+                            });
+
+                            table.Header(h =>
+                            {
+                                h.Cell().Background(HeaderBg).Padding(3).Text("#").FontSize(6).Bold().FontColor(Colors.White);
+                                h.Cell().Background(HeaderBg).Padding(3).Text("Tag").FontSize(6).Bold().FontColor(Colors.White);
+                                h.Cell().Background(HeaderBg).Padding(3).Text("Name").FontSize(6).Bold().FontColor(Colors.White);
+                                h.Cell().Background(HeaderBg).Padding(3).Text("Category").FontSize(6).Bold().FontColor(Colors.White);
+                                h.Cell().Background(HeaderBg).Padding(3).Text("Status").FontSize(6).Bold().FontColor(Colors.White);
+                                h.Cell().Background(HeaderBg).Padding(3).Text("S/N").FontSize(6).Bold().FontColor(Colors.White);
+                                h.Cell().Background(HeaderBg).Padding(3).Text("RFID").FontSize(6).Bold().FontColor(Colors.White);
+                                h.Cell().Background(HeaderBg).Padding(3).Text("Last Seen").FontSize(6).Bold().FontColor(Colors.White);
+                            });
+
+                            var idx = 1;
+                            foreach (var asset in data.CurrentAssets)
+                            {
+                                var bg = idx % 2 == 0 ? Colors.White : Color.FromHex("#f8fafc");
+                                table.Cell().Background(bg).Padding(3).Text(idx.ToString()).FontSize(6).FontColor(Slate600);
+                                table.Cell().Background(bg).Padding(3).Text(asset.AssetTag).FontSize(6).Bold().FontColor(Slate900);
+                                table.Cell().Background(bg).Padding(3).Text(asset.Name).FontSize(6).FontColor(Slate600);
+                                table.Cell().Background(bg).Padding(3).Text(asset.Category).FontSize(6).FontColor(Slate600);
+                                table.Cell().Background(bg).Padding(3).Text(StatusLabel(asset.Status.ToString())).FontSize(6).Bold().FontColor(StatusColor(asset.Status.ToString()));
+                                table.Cell().Background(bg).Padding(3).Text(asset.SerialNumber ?? "-").FontSize(6).FontColor(Slate600);
+                                table.Cell().Background(bg).Padding(3).Text(asset.RfidTagId ?? "-").FontSize(6).FontColor(Slate600);
+                                table.Cell().Background(bg).Padding(3).Text(asset.LastSeen?.ToString("MMM dd, yyyy") ?? "N/A").FontSize(6).FontColor(Slate600);
+                                idx++;
+                            }
+                        });
+                    }
+
+                    if (data.History.Count > 0)
+                    {
+                        col.Item().PaddingTop(8).Text($"Activity History ({data.History.Count})")
+                            .FontSize(12).Bold().FontColor(Slate900);
+
+                        col.Item().Table(table =>
+                        {
+                            table.ColumnsDefinition(c =>
+                            {
+                                c.RelativeColumn(1.5f);
+                                c.RelativeColumn(1.5f);
+                                c.RelativeColumn(1);
+                                c.RelativeColumn(1);
+                                c.RelativeColumn(1);
+                                c.RelativeColumn(1);
+                                c.RelativeColumn(1.5f);
+                            });
+
+                            table.Header(h =>
+                            {
+                                h.Cell().Background(HeaderBg).Padding(3).Text("Asset").FontSize(6).Bold().FontColor(Colors.White);
+                                h.Cell().Background(HeaderBg).Padding(3).Text("Event").FontSize(6).Bold().FontColor(Colors.White);
+                                h.Cell().Background(HeaderBg).Padding(3).Text("From").FontSize(6).Bold().FontColor(Colors.White);
+                                h.Cell().Background(HeaderBg).Padding(3).Text("To").FontSize(6).Bold().FontColor(Colors.White);
+                                h.Cell().Background(HeaderBg).Padding(3).Text("By").FontSize(6).Bold().FontColor(Colors.White);
+                                h.Cell().Background(HeaderBg).Padding(3).Text("Source").FontSize(6).Bold().FontColor(Colors.White);
+                                h.Cell().Background(HeaderBg).Padding(3).Text("Date").FontSize(6).Bold().FontColor(Colors.White);
+                            });
+
+                            var hidx = 1;
+                            foreach (var entry in data.History)
+                            {
+                                var bg = hidx % 2 == 0 ? Colors.White : Color.FromHex("#f8fafc");
+                                table.Cell().Background(bg).Padding(3).Text(entry.AssetTag).FontSize(6).FontColor(Slate900);
+                                table.Cell().Background(bg).Padding(3).Text(entry.EventType).FontSize(6).Bold().FontColor(AccentBlue);
+                                table.Cell().Background(bg).Padding(3).Text(entry.OldValue ?? "-").FontSize(6).FontColor(Slate600);
+                                table.Cell().Background(bg).Padding(3).Text(entry.NewValue ?? "-").FontSize(6).FontColor(Slate600);
+                                table.Cell().Background(bg).Padding(3).Text(entry.ChangedBy).FontSize(6).FontColor(Slate600);
+                                table.Cell().Background(bg).Padding(3).Text(entry.Source).FontSize(6).FontColor(Slate600);
+                                table.Cell().Background(bg).Padding(3).Text(entry.Timestamp.ToString("yyyy-MM-dd HH:mm")).FontSize(6).FontColor(Slate600);
+                                hidx++;
+                            }
+                        });
+                    }
+
+                    if (data.CurrentAssets.Count == 0 && data.History.Count == 0)
+                    {
+                        col.Item().Padding(20).AlignCenter()
+                            .Text("No assets or activity found for this location.").FontSize(10).FontColor(Slate400);
+                    }
+                });
+            });
+        });
+
+        return Task.FromResult(ToPdf(document));
+    }
+
+    private static string BuildBreadcrumb(LocationHierarchyInfo h)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrEmpty(h.SiteName)) parts.Add(h.SiteName);
+        if (!string.IsNullOrEmpty(h.ZoneName)) parts.Add(h.ZoneName);
+        if (!string.IsNullOrEmpty(h.BuildingName)) parts.Add(h.BuildingName);
+        if (h.FloorLevel.HasValue) parts.Add($"Level {h.FloorLevel}");
+        if (!string.IsNullOrEmpty(h.RoomName)) parts.Add($"{h.RoomName} ({h.RoomCode})");
+        else if (!string.IsNullOrEmpty(h.RoomCode)) parts.Add(h.RoomCode);
+        return parts.Count > 0 ? string.Join(" > ", parts) : "Location";
     }
 }

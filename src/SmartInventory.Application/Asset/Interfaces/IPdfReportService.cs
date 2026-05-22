@@ -1,3 +1,5 @@
+using System.Threading;
+using System.Threading.Tasks;
 using SmartInventory.Application.Asset.DTOs.Reports;
 using SmartInventory.Application.Mobile.Reports.DTOs;
 
@@ -5,20 +7,18 @@ namespace SmartInventory.Application.Asset.Interfaces;
 
 public interface IPdfReportService
 {
-    byte[] GenerateMaintenanceForecast(List<MaintenanceForecastDto> data, int days);
-    byte[] GenerateOverdueMaintenance(List<OverdueMaintenanceDto> data);
-    byte[] GenerateCriticalIssues(List<CriticalIssueDto> data);
-    byte[] GenerateStatusSummary(List<StatusSummaryDto> data);
-    byte[] GenerateZoneInventory(List<ZoneInventoryDto> data);
-    byte[] GenerateBuildingStocktake(List<BuildingStocktakeDto> data);
-    byte[] GenerateRoomAudit(RoomAuditDto data);
-    byte[] GenerateEmptyRooms(List<EmptyRoomDto> data);
-    byte[] GenerateLocationDiscrepancies(List<LocationDiscrepancyDto> data);
-    byte[] GenerateCategoryStocktake(List<CategoryStocktakeDto> data);
-    byte[] GenerateDepartmentReport(List<DepartmentReportDto> data);
+    Task<byte[]> GenerateMaintenanceForecastAsync(List<MaintenanceForecastDto> data, int days, CancellationToken ct = default);
+    Task<byte[]> GenerateOverdueMaintenanceAsync(List<OverdueMaintenanceDto> data, CancellationToken ct = default);
+    Task<byte[]> GenerateCriticalIssuesAsync(List<CriticalIssueDto> data, CancellationToken ct = default);
+    Task<byte[]> GenerateStatusSummaryAsync(List<StatusSummaryDto> data, CancellationToken ct = default);
+    Task<byte[]> GenerateZoneInventoryAsync(List<ZoneInventoryDto> data, CancellationToken ct = default);
+    Task<byte[]> GenerateBuildingStocktakeAsync(List<BuildingStocktakeDto> data, CancellationToken ct = default);
+    Task<byte[]> GenerateRoomAuditAsync(RoomAuditDto data, CancellationToken ct = default);
+    Task<byte[]> GenerateEmptyRoomsAsync(List<EmptyRoomDto> data, CancellationToken ct = default);
+    Task<byte[]> GenerateLocationDiscrepanciesAsync(List<LocationDiscrepancyDto> data, CancellationToken ct = default);
+    Task<byte[]> GenerateCategoryStocktakeAsync(List<CategoryStocktakeDto> data, CancellationToken ct = default);
+    Task<byte[]> GenerateDepartmentReportAsync(List<DepartmentReportDto> data, CancellationToken ct = default);
 
-    /// <summary>
-    /// Generates a PDF journal of activity/transactions for a specific room.
-    /// </summary>
-    byte[] GenerateRoomJournal(RoomJournalDto data);
+    Task<byte[]> GenerateRoomJournalAsync(RoomJournalDto data, CancellationToken ct = default);
+    Task<byte[]> GenerateLocationReportAsync(LocationComprehensiveReportDto data, CancellationToken ct = default);
 }

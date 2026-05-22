@@ -38,4 +38,5 @@ public interface IMobileReportService
     /// ISet QR — fetches all departments, generates QR with format ISET:{code1},{code2},...
     /// </summary>
     Task<byte[]> GetIsetQrAsync();
+    Task InvalidateIsetQrAsync();
 }
