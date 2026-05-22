@@ -220,6 +220,19 @@ namespace SmartInventory.Infrastructure.Location.Repositories
             }
         }
 
+        public async Task<List<AssetLocationHistory>> GetLocationHistoryByRoomCodesAsync(List<string> roomCodes)
+        {
+            if (roomCodes == null || roomCodes.Count == 0)
+                return new List<AssetLocationHistory>();
+
+            return await _context.AssetLocationHistories
+                .AsNoTracking()
+                .Where(h => (h.PreviousRoomCode != null && roomCodes.Contains(h.PreviousRoomCode))
+                            || roomCodes.Contains(h.NewRoomCode))
+                .OrderByDescending(h => h.CreatedAt)
+                .ToListAsync();
+        }
+
         private async Task InvalidateLocationCacheAsync()
         {
             if (_cache != null)

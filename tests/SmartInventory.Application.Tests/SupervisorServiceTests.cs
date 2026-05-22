@@ -3,6 +3,7 @@ using Moq;
 using SmartInventory.Application.Auth.DTOs.Responses;
 using SmartInventory.Application.Auth.Interfaces;
 using SmartInventory.Application.Auth.Services;
+using SmartInventory.Application.Notification.Interfaces;
 using SmartInventory.Domain.Auth.Entities;
 using SmartInventory.Domain.Auth.Enums;
 using Xunit;
@@ -19,10 +20,12 @@ public class SupervisorServiceTests : ApplicationTestBase
     {
         _authRepositoryMock = new Mock<IAuthRepository>();
         _emailSenderMock = new Mock<IEmailSender>();
+        var notificationMock = new Mock<INotificationService>();
 
         _supervisorService = new SupervisorService(
             _authRepositoryMock.Object,
-            _emailSenderMock.Object
+            _emailSenderMock.Object,
+            notificationMock.Object
         );
     }
 

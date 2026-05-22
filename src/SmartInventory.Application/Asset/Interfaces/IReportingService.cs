@@ -9,10 +9,10 @@ namespace SmartInventory.Application.Asset.Interfaces;
 
 public interface IReportingService
 {
-    Task<IEnumerable<InventorySummaryDto>> GetInventorySummaryAsync(string groupBy, Guid? userId, UserRole role);
-    Task<IEnumerable<AssetHistoryDto>> GetAssetHistoryAsync(Guid assetId);
-    Task<IEnumerable<ActivityLogDto>> GetActivityLogAsync(DateTime? from, DateTime? to, Guid? userId);
-    Task<IEnumerable<LocationReportDto>> GetLocationReportAsync(Guid? locationId);
+    Task<List<InventorySummaryDto>> GetInventorySummaryAsync(string groupBy, Guid? userId, UserRole role);
+    Task<List<AssetHistoryDto>> GetAssetHistoryAsync(Guid assetId);
+    Task<List<ActivityLogDto>> GetActivityLogAsync(DateTime? from, DateTime? to, Guid? userId);
+    Task<List<LocationReportDto>> GetLocationReportAsync(Guid? locationId);
 
     // Maintenance & Status Reports
     Task<List<MaintenanceForecastDto>> GetMaintenanceForecastAsync(int days);
@@ -32,4 +32,8 @@ public interface IReportingService
 
     // Executive Reports
     Task<List<DepartmentReportDto>> GetDepartmentReportsAsync();
+
+    // Location-Based Comprehensive Report
+    Task<LocationComprehensiveReportDto?> GetLocationReportAsync(
+        string scope, string scopeId, Guid? userId, Domain.Auth.Enums.UserRole role);
 }

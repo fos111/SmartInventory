@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.FileProviders;
 using SmartInventory.Application.Storage.Interfaces;
 using SmartInventory.Infrastructure.Storage;
+using Azure.Storage.Blobs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Hangfire;
@@ -191,6 +192,9 @@ builder.Services.AddScoped<ILocationService, LocationService>();
 
 builder.Services.AddScoped<IBulkImportJob, BulkImportJob>();
 builder.Services.AddScoped<IMaintenanceNotificationJob, MaintenanceNotificationJob>();
+builder.Services.AddScoped<IMonthlyReportJob, MonthlyReportJob>();
+builder.Services.AddScoped<ISemesterReportJob, SemesterReportJob>();
+builder.Services.AddScoped<IYearlyReportJob, YearlyReportJob>();
 builder.Services.AddScoped<IAssetRepository, AssetRepository>();
 builder.Services.AddScoped<IAssetHistoryRepository, AssetHistoryRepository>();
 builder.Services.AddScoped<IAssetHistoryService, AssetHistoryService>();
@@ -199,7 +203,12 @@ builder.Services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
 builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
 builder.Services.AddScoped<CategoryService>();
 builder.Services.AddScoped<IReportingService, ReportingService>();
-builder.Services.AddScoped<IPdfReportService, PdfReportService>();
+builder.Services.AddScoped<IPdfReportService>(sp =>
+{
+    var inner = new PdfReportService();
+    var cache = sp.GetService<IBlobCacheService>();
+    return cache != null ? new CachedPdfReportService(inner, cache) : inner;
+});
 builder.Services.AddScoped<CsvExportService>();
 builder.Services.AddScoped<PdfExportService>();
 
@@ -226,9 +235,37 @@ builder.Services.AddScoped<IMobileAuthService, MobileAuthService>();
 // Mobile Lookup DI
 builder.Services.AddScoped<IMobileLookupService, MobileLookupService>();
 
-// File Storage DI
-builder.Services.AddSingleton<IFileStorageService>(sp =>
-    new LocalFileStorageService(Directory.GetCurrentDirectory()));
+var storageProvider = builder.Configuration.GetSection("Storage")["Provider"] ?? "Local";
+
+if (string.Equals(storageProvider, "AzureBlob", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton(sp =>
+    {
+        var connectionString = builder.Configuration.GetConnectionString("AzureStorage")
+            ?? builder.Configuration["AzureStorage:ConnectionString"]
+            ?? Environment.GetEnvironmentVariable("AZURE_STORAGE_CONNECTION_STRING");
+        return string.IsNullOrEmpty(connectionString)
+            ? new BlobServiceClient(new Uri("https://localhost"))
+            : new BlobServiceClient(connectionString);
+    });
+    builder.Services.AddSingleton<IFileStorageService>(sp =>
+    {
+        var blobClient = sp.GetRequiredService<BlobServiceClient>();
+        var logger = sp.GetRequiredService<ILogger<AzureBlobStorageService>>();
+        return new AzureBlobStorageService(container => blobClient.GetBlobContainerClient(container), logger);
+    });
+    builder.Services.AddSingleton<IBlobCacheService>(sp =>
+    {
+        var blobClient = sp.GetRequiredService<BlobServiceClient>();
+        var logger = sp.GetRequiredService<ILogger<BlobCacheService>>();
+        return new BlobCacheService(container => blobClient.GetBlobContainerClient(container), logger);
+    });
+}
+else
+{
+    builder.Services.AddSingleton<IFileStorageService>(sp =>
+        new LocalFileStorageService(Directory.GetCurrentDirectory()));
+}
 
 // Mobile Products DI
 builder.Services.AddScoped<IMobileProductService, MobileProductService>();
@@ -258,7 +295,8 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 
 builder.Services.AddHealthChecks()
-    .AddCheck<RedisHealthCheck>("redis");
+    .AddCheck<RedisHealthCheck>("redis")
+    .AddCheck<BlobStorageHealthCheck>("blob-storage");
 
 builder.Services.AddHangfire(config =>
     config.UsePostgreSqlStorage(defaultConnection));
@@ -343,5 +381,21 @@ RecurringJob.AddOrUpdate<IMaintenanceNotificationJob>(
     "maintenance-notification",
     job => job.RunAsync(CancellationToken.None),
     Cron.Daily);
+
+// Periodic report generation (conditional — only if blob cache is available)
+RecurringJob.AddOrUpdate<IMonthlyReportJob>(
+    "monthly-report",
+    job => job.RunAsync(CancellationToken.None),
+    "0 0 1 * *"); // 1st of every month at midnight
+
+RecurringJob.AddOrUpdate<ISemesterReportJob>(
+    "semester-report",
+    job => job.RunAsync(CancellationToken.None),
+    "0 0 1 1,7 *"); // Jan 1 and Jul 1 at midnight
+
+RecurringJob.AddOrUpdate<IYearlyReportJob>(
+    "yearly-report",
+    job => job.RunAsync(CancellationToken.None),
+    "0 0 1 1 *"); // Jan 1 at midnight
 
 app.Run();

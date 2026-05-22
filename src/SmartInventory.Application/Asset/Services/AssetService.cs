@@ -33,6 +33,7 @@ public class AssetService : IAssetService
     private readonly IActivityLogService _activityLogService;
     private readonly IMapper _mapper;
     private readonly ICacheService? _cacheService;
+    private readonly IBlobCacheService? _blobCacheService;
 
     public AssetService(
         IAssetRepository repository, 
@@ -42,7 +43,8 @@ public class AssetService : IAssetService
         ILocationRepository locationRepository,
         IActivityLogService activityLogService,
         IMapper mapper,
-        ICacheService? cacheService = null)
+        ICacheService? cacheService = null,
+        IBlobCacheService? blobCacheService = null)
     {
         _repository = repository;
         _backgroundJobClient = backgroundJobClient;
@@ -52,14 +54,21 @@ public class AssetService : IAssetService
         _activityLogService = activityLogService;
         _mapper = mapper;
         _cacheService = cacheService;
+        _blobCacheService = blobCacheService;
     }
 
-    private async Task InvalidateCachesAsync()
+    private async Task InvalidateCachesAsync(Guid? assetId = null)
     {
         if (_cacheService != null)
         {
             await _cacheService.RemoveByPrefixAsync("stats:");
             await _cacheService.RemoveByPrefixAsync("asset:");
+        }
+
+        if (_blobCacheService != null && assetId.HasValue)
+        {
+            await _blobCacheService.DeleteAsync($"qrcodes/asset-{assetId}.png");
+            await _blobCacheService.DeleteAsync($"barcodes/asset-{assetId}.png");
         }
     }
 
@@ -143,7 +152,7 @@ public class AssetService : IAssetService
         var asset = _mapper.Map<AssetEntity>(dto);
         var created = await _repository.AddAsync(asset);
 
-        await InvalidateCachesAsync();
+        await InvalidateCachesAsync(created.Id);
 
         await _activityLogService.TrackFacilityChangeAsync(
             "Created", "Asset", created.AssetTag, created.Name, null, userId);
@@ -208,7 +217,7 @@ public class AssetService : IAssetService
             asset.CurrentRoomCode = dto.CurrentRoomCode;
 
         var updated = await _repository.UpdateAsync(asset);
-        await InvalidateCachesAsync();
+        await InvalidateCachesAsync(id);
 
         var message = changeParts.Count > 0
             ? $"{asset.Name} ({asset.AssetTag}) — {string.Join(", ", changeParts)}"
@@ -251,7 +260,7 @@ public class AssetService : IAssetService
 
         asset.CurrentRoomCode = roomCode;
         var updated = await _repository.UpdateAsync(asset);
-        await InvalidateCachesAsync();
+        await InvalidateCachesAsync(id);
         return _mapper.Map<AssetDto>(updated);
     }
 
@@ -271,7 +280,7 @@ public class AssetService : IAssetService
 
         asset.RfidTagId = normalizedRfid;
         var updated = await _repository.UpdateAsync(asset);
-        await InvalidateCachesAsync();
+        await InvalidateCachesAsync(id);
         return _mapper.Map<AssetDto>(updated);
     }
 
@@ -289,7 +298,7 @@ public class AssetService : IAssetService
 
         asset.BleId = bleId;
         var updated = await _repository.UpdateAsync(asset);
-        await InvalidateCachesAsync();
+        await InvalidateCachesAsync(id);
         return _mapper.Map<AssetDto>(updated);
     }
 
@@ -304,7 +313,7 @@ public class AssetService : IAssetService
 
         asset.Price = price;
         var updated = await _repository.UpdateAsync(asset);
-        await InvalidateCachesAsync();
+        await InvalidateCachesAsync(id);
         return _mapper.Map<AssetDto>(updated);
     }
 
@@ -318,6 +327,27 @@ public class AssetService : IAssetService
             throw new UnauthorizedAccessException("Only Supervisors can set asset status to Retired.");
 
         var oldStatus = asset.Status;
+
+        // ── Same-Status Guard ────────────────────────────────────────────
+        // Prevent side-effects (history entry, notification, cache invalidation)
+        // when the status value hasn't actually changed.
+        if (status == oldStatus)
+        {
+            // Updating the entry note while staying in Maintenance/CriticalIssue
+            // is a legitimate operation — update note only, no status notification.
+            if (!string.IsNullOrWhiteSpace(note) &&
+                (status == AssetStatus.Maintenance || status == AssetStatus.CriticalIssue))
+            {
+                asset.StatusEntryNote = note.Trim();
+                await _historyService.TrackChangeAsync(id, "StatusEntryNote", null, note.Trim(), userId);
+                var updatedNote = await _repository.UpdateAsync(asset);
+                await InvalidateCachesAsync(id);
+                return _mapper.Map<AssetDto>(updatedNote);
+            }
+
+            // No meaningful change — return current state without side effects.
+            return _mapper.Map<AssetDto>(asset);
+        }
 
         // ── Status Entry Note Validation ─────────────────────────────────
         // Note is required when transitioning TO Maintenance or CriticalIssue
@@ -369,7 +399,7 @@ public class AssetService : IAssetService
         asset.Status = status;
         var updated = await _repository.UpdateAsync(asset);
 
-        await InvalidateCachesAsync();
+        await InvalidateCachesAsync(id);
         await CreateStatusChangeNotificationAsync(updated, status, note);
 
         return _mapper.Map<AssetDto>(updated);
@@ -426,7 +456,7 @@ public class AssetService : IAssetService
             asset.LastMaintenanceDate = DateTime.UtcNow;
 
         var updated = await _repository.UpdateAsync(asset);
-        await InvalidateCachesAsync();
+        await InvalidateCachesAsync(id);
 
         if (dueDate.HasValue)
         {
@@ -459,7 +489,7 @@ public class AssetService : IAssetService
         await _historyService.TrackChangeAsync(asset.Id, "DeletedAt", null, DateTime.UtcNow.ToString(), userId);
 
         await _repository.DeleteAsync(asset.Id);
-        await InvalidateCachesAsync();
+        await InvalidateCachesAsync(asset.Id);
 
         await _notificationService.CreateNotificationAsync(new CreateNotificationDto
         {
@@ -478,10 +508,22 @@ public class AssetService : IAssetService
         if (asset == null)
             throw new ArgumentException($"Asset with ID {id} not found.");
 
+        var cacheKey = $"qrcodes/asset-{id}.png";
+
+        if (_blobCacheService != null)
+        {
+            var cached = await _blobCacheService.GetAsync(cacheKey);
+            if (cached != null) return cached;
+        }
+
         using var qrGenerator = new QRCodeGenerator();
         var qrCodeData = qrGenerator.CreateQrCode($"ASSET:{asset.AssetTag}", QRCodeGenerator.ECCLevel.M);
         using var qrCode = new PngByteQRCode(qrCodeData);
         var qrBytes = qrCode.GetGraphic(20);
+
+        if (_blobCacheService != null)
+            await _blobCacheService.SetAsync(cacheKey, qrBytes, "image/png");
+
         return qrBytes;
     }
 
@@ -491,10 +533,23 @@ public class AssetService : IAssetService
         if (asset == null)
             throw new ArgumentException($"Asset with ID {id} not found.");
 
+        var cacheKey = $"barcodes/asset-{id}.png";
+
+        if (_blobCacheService != null)
+        {
+            var cached = await _blobCacheService.GetAsync(cacheKey);
+            if (cached != null) return cached;
+        }
+
         using var barcode = new Barcode();
         barcode.IncludeLabel = true;
         barcode.Encode(BarcodeStandard.Type.Code128, asset.AssetTag, width, height);
-        return barcode.GetImageData(SaveTypes.Png);
+        var barcodeBytes = barcode.GetImageData(SaveTypes.Png);
+
+        if (_blobCacheService != null)
+            await _blobCacheService.SetAsync(cacheKey, barcodeBytes, "image/png");
+
+        return barcodeBytes;
     }
 
     public async Task<IEnumerable<AssetReconciliationDto>> GetReconciliationAsync()

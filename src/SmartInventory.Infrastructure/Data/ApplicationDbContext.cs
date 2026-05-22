@@ -57,9 +57,6 @@ public class ApplicationDbContext : DbContext
         // Apply configurations from Infrastructure assembly
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
 
-        // Seed location data (zones, buildings, floors, rooms)
-        LocationSeedData.Seed(modelBuilder);
-
         // Global query filter for soft delete
         modelBuilder.Entity<AssetEntity>().HasQueryFilter(a => a.DeletedAt == null);
 

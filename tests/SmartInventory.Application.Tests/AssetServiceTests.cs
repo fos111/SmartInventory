@@ -12,6 +12,7 @@ using SmartInventory.Domain.Asset.Enums;
 using SmartInventory.Domain.Auth.Enums;
 using SmartInventory.Domain.Notification.Enums;
 using SmartInventory.Application.Notification.DTOs;
+using SmartInventory.Application.Caching;
 using Xunit;
 using AssetEntity = SmartInventory.Domain.Asset.Entities.Asset;
 
@@ -156,6 +157,76 @@ public class AssetServiceAuthorizationTests : ApplicationTestBase
         var result = await _service.UpdateStatusAsync(asset.Id, AssetStatus.CriticalIssue, Guid.NewGuid(), UserRole.Technicien);
 
         result.Status.Should().Be(AssetStatus.CriticalIssue);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_SameStatusNoNote_ReturnsWithoutSideEffects()
+    {
+        var asset = CreateTestAsset(AssetStatus.Maintenance);
+        _repositoryMock.Setup(r => r.GetByIdAsync(asset.Id)).ReturnsAsync(asset);
+
+        var result = await _service.UpdateStatusAsync(asset.Id, AssetStatus.Maintenance, Guid.NewGuid(), UserRole.Technicien, note: null);
+
+        result.Status.Should().Be(AssetStatus.Maintenance);
+        _historyServiceMock.Verify(h => h.TrackChangeAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<Guid>()), Times.Never);
+        _notificationServiceMock.Verify(n => n.CreateNotificationAsync(It.IsAny<CreateNotificationDto>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repositoryMock.Verify(r => r.UpdateAsync(It.IsAny<AssetEntity>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_SameStatusWithNote_UpdatesNoteOnly()
+    {
+        var asset = CreateTestAsset(AssetStatus.Maintenance);
+        const string note = "Extended maintenance — waiting for replacement part.";
+        _repositoryMock.Setup(r => r.GetByIdAsync(asset.Id)).ReturnsAsync(asset);
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<AssetEntity>())).ReturnsAsync(asset);
+        _historyServiceMock.Setup(h => h.TrackChangeAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<Guid>()))
+            .Returns(Task.CompletedTask);
+
+        var result = await _service.UpdateStatusAsync(asset.Id, AssetStatus.Maintenance, Guid.NewGuid(), UserRole.Technicien, note);
+
+        result.Status.Should().Be(AssetStatus.Maintenance);
+        asset.StatusEntryNote.Should().Be(note);
+        _historyServiceMock.Verify(
+            h => h.TrackChangeAsync(asset.Id, "StatusEntryNote", null, note, It.IsAny<Guid>()), Times.Once);
+        _historyServiceMock.Verify(
+            h => h.TrackChangeAsync(It.IsAny<Guid>(), "Status", It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<Guid>()), Times.Never);
+        _notificationServiceMock.Verify(n => n.CreateNotificationAsync(It.IsAny<CreateNotificationDto>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_SameStatusNoNote_AnyStatus_ReturnsWithoutSideEffects()
+    {
+        var asset = CreateTestAsset(AssetStatus.Active);
+        _repositoryMock.Setup(r => r.GetByIdAsync(asset.Id)).ReturnsAsync(asset);
+
+        var result = await _service.UpdateStatusAsync(asset.Id, AssetStatus.Active, Guid.NewGuid(), UserRole.Technicien, note: null);
+
+        result.Status.Should().Be(AssetStatus.Active);
+        _historyServiceMock.Verify(h => h.TrackChangeAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<Guid>()), Times.Never);
+        _notificationServiceMock.Verify(n => n.CreateNotificationAsync(It.IsAny<CreateNotificationDto>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repositoryMock.Verify(r => r.UpdateAsync(It.IsAny<AssetEntity>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_SameStatusWithNote_CriticalIssue_UpdatesNoteOnly()
+    {
+        var asset = CreateTestAsset(AssetStatus.CriticalIssue);
+        const string note = "Updated diagnosis — main board needs replacement.";
+        _repositoryMock.Setup(r => r.GetByIdAsync(asset.Id)).ReturnsAsync(asset);
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<AssetEntity>())).ReturnsAsync(asset);
+        _historyServiceMock.Setup(h => h.TrackChangeAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<Guid>()))
+            .Returns(Task.CompletedTask);
+
+        var result = await _service.UpdateStatusAsync(asset.Id, AssetStatus.CriticalIssue, Guid.NewGuid(), UserRole.Technicien, note);
+
+        result.Status.Should().Be(AssetStatus.CriticalIssue);
+        asset.StatusEntryNote.Should().Be(note);
+        _historyServiceMock.Verify(
+            h => h.TrackChangeAsync(asset.Id, "StatusEntryNote", null, note, It.IsAny<Guid>()), Times.Once);
+        _historyServiceMock.Verify(
+            h => h.TrackChangeAsync(It.IsAny<Guid>(), "Status", It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<Guid>()), Times.Never);
+        _notificationServiceMock.Verify(n => n.CreateNotificationAsync(It.IsAny<CreateNotificationDto>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }
 
@@ -827,5 +898,122 @@ public class AssetBarcodeGenerationTests : ApplicationTestBase
         result1.Should().NotBeNull();
         result2.Should().NotBeNull();
         Convert.ToBase64String(result1).Should().NotBe(Convert.ToBase64String(result2));
+    }
+}
+
+public class AssetCodeCacheTests : ApplicationTestBase
+{
+    private readonly Mock<IAssetRepository> _repositoryMock;
+    private readonly Mock<IBlobCacheService> _blobCacheMock;
+    private readonly AssetService _service;
+
+    public AssetCodeCacheTests()
+    {
+        _repositoryMock = new Mock<IAssetRepository>();
+        _blobCacheMock = new Mock<IBlobCacheService>();
+
+        _service = new AssetService(
+            _repositoryMock.Object,
+            Mock.Of<IBackgroundJobClient>(),
+            Mock.Of<IAssetHistoryService>(),
+            Mock.Of<SmartInventory.Application.Notification.Interfaces.INotificationService>(),
+            Mock.Of<SmartInventory.Application.Location.Interfaces.ILocationRepository>(),
+            Mock.Of<IActivityLogService>(),
+            Mock.Of<AutoMapper.IMapper>(),
+            null,
+            _blobCacheMock.Object);
+    }
+
+    private AssetEntity CreateTestAsset() => new AssetEntity
+    {
+        Id = Guid.NewGuid(),
+        AssetTag = "AST-001",
+        Name = "Dell Laptop",
+        Category = "Computer",
+        Status = AssetStatus.Active,
+        CurrentRoomCode = "LI1"
+    };
+
+    [Fact]
+    public async Task GenerateQrCodeAsync_WhenCached_ReturnsCachedBytes()
+    {
+        var asset = CreateTestAsset();
+        var cachedBytes = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A };
+        _repositoryMock.Setup(r => r.GetByIdAsync(asset.Id)).ReturnsAsync(asset);
+        _blobCacheMock.Setup(b => b.GetAsync($"qrcodes/asset-{asset.Id}.png", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(cachedBytes);
+
+        var result = await _service.GenerateQrCodeAsync(asset.Id);
+
+        result.Should().BeSameAs(cachedBytes);
+        _blobCacheMock.Verify(b => b.GetAsync($"qrcodes/asset-{asset.Id}.png", It.IsAny<CancellationToken>()), Times.Once);
+        _blobCacheMock.Verify(b => b.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GenerateQrCodeAsync_WhenNotCached_GeneratesAndCaches()
+    {
+        var asset = CreateTestAsset();
+        _repositoryMock.Setup(r => r.GetByIdAsync(asset.Id)).ReturnsAsync(asset);
+        _blobCacheMock.Setup(b => b.GetAsync($"qrcodes/asset-{asset.Id}.png", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((byte[]?)null);
+
+        var result = await _service.GenerateQrCodeAsync(asset.Id);
+
+        result.Should().NotBeNull();
+        result.Length.Should().BeGreaterThan(0);
+        _blobCacheMock.Verify(b => b.GetAsync($"qrcodes/asset-{asset.Id}.png", It.IsAny<CancellationToken>()), Times.Once);
+        _blobCacheMock.Verify(b => b.SetAsync($"qrcodes/asset-{asset.Id}.png", result, "image/png", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GenerateBarcodeAsync_WhenCached_ReturnsCachedBytes()
+    {
+        var asset = CreateTestAsset();
+        var cachedBytes = new byte[] { 0x89, 0x50, 0x4E, 0x47 };
+        _repositoryMock.Setup(r => r.GetByIdAsync(asset.Id)).ReturnsAsync(asset);
+        _blobCacheMock.Setup(b => b.GetAsync($"barcodes/asset-{asset.Id}.png", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(cachedBytes);
+
+        var result = await _service.GenerateBarcodeAsync(asset.Id, 300, 80);
+
+        result.Should().BeSameAs(cachedBytes);
+        _blobCacheMock.Verify(b => b.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GenerateBarcodeAsync_WhenNotCached_GeneratesAndCaches()
+    {
+        var asset = CreateTestAsset();
+        _repositoryMock.Setup(r => r.GetByIdAsync(asset.Id)).ReturnsAsync(asset);
+        _blobCacheMock.Setup(b => b.GetAsync($"barcodes/asset-{asset.Id}.png", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((byte[]?)null);
+
+        var result = await _service.GenerateBarcodeAsync(asset.Id, 300, 80);
+
+        result.Should().NotBeNull();
+        result.Length.Should().BeGreaterThan(0);
+        _blobCacheMock.Verify(b => b.SetAsync($"barcodes/asset-{asset.Id}.png", result, "image/png", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GenerateQrCodeAsync_WhenBlobCacheNull_FallsThroughToGeneration()
+    {
+        var asset = CreateTestAsset();
+        var serviceWithoutCache = new AssetService(
+            _repositoryMock.Object,
+            Mock.Of<IBackgroundJobClient>(),
+            Mock.Of<IAssetHistoryService>(),
+            Mock.Of<SmartInventory.Application.Notification.Interfaces.INotificationService>(),
+            Mock.Of<SmartInventory.Application.Location.Interfaces.ILocationRepository>(),
+            Mock.Of<IActivityLogService>(),
+            Mock.Of<AutoMapper.IMapper>());
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(asset.Id)).ReturnsAsync(asset);
+
+        var result = await serviceWithoutCache.GenerateQrCodeAsync(asset.Id);
+
+        result.Should().NotBeNull();
+        result.Length.Should().BeGreaterThan(0);
     }
 }
