@@ -613,6 +613,165 @@ public class LocationNotificationTests : ApplicationTestBase
     }
 
     [Fact]
+    public async Task CreateZoneSiteShapeAsync_WithPolygonPoints_ReturnsShapeWithPoints()
+    {
+        var zoneId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var points = "[{\"x\":100,\"y\":100},{\"x\":200,\"y\":100},{\"x\":200,\"y\":200},{\"x\":100,\"y\":200}]";
+        var dto = new CreateZoneSiteShapeDto
+        {
+            ZoneId = zoneId,
+            Points = points,
+            Color = "#dbeafe"
+        };
+
+        _repositoryMock.Setup(r => r.GetZoneByIdAsync(zoneId))
+            .ReturnsAsync(new Zone { Id = zoneId, Code = "Z1", Name = "Zone One" });
+        _repositoryMock.Setup(r => r.AddZoneSiteShapeAsync(It.IsAny<ZoneSiteShape>()))
+            .ReturnsAsync((ZoneSiteShape s) => s);
+
+        var service = CreateService();
+        var result = await service.CreateZoneSiteShapeAsync(dto, userId);
+
+        result.Should().NotBeNull();
+        result.Points.Should().Be(points);
+        result.Color.Should().Be("#dbeafe");
+    }
+
+    [Fact]
+    public async Task CreateZoneSiteShapeAsync_InvalidZone_ThrowsException()
+    {
+        var zoneId = Guid.NewGuid();
+        var dto = new CreateZoneSiteShapeDto
+        {
+            ZoneId = zoneId,
+            Points = "[{\"x\":0,\"y\":0},{\"x\":10,\"y\":0},{\"x\":10,\"y\":10},{\"x\":0,\"y\":10}]"
+        };
+
+        _repositoryMock.Setup(r => r.GetZoneByIdAsync(zoneId))
+            .ReturnsAsync((Zone?)null);
+
+        var service = CreateService();
+        var act = () => service.CreateZoneSiteShapeAsync(dto, Guid.NewGuid());
+
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*not found*");
+    }
+
+    [Fact]
+    public async Task UpdateZoneSiteShapeAsync_WithNewPoints_UpdatesShape()
+    {
+        var shapeId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var originalPoints = "[{\"x\":0,\"y\":0},{\"x\":100,\"y\":0},{\"x\":100,\"y\":100},{\"x\":0,\"y\":100}]";
+        var newPoints = "[{\"x\":50,\"y\":50},{\"x\":150,\"y\":50},{\"x\":150,\"y\":150},{\"x\":50,\"y\":150}]";
+        var existing = new ZoneSiteShape
+        {
+            Id = shapeId,
+            ZoneId = Guid.NewGuid(),
+            Points = originalPoints,
+            Color = "#3b82f6"
+        };
+
+        _repositoryMock.Setup(r => r.GetZoneSiteShapeByIdAsync(shapeId))
+            .ReturnsAsync(existing);
+        _repositoryMock.Setup(r => r.UpdateZoneSiteShapeAsync(It.IsAny<ZoneSiteShape>()))
+            .ReturnsAsync((ZoneSiteShape s) => s);
+
+        var dto = new UpdateZoneSiteShapeDto
+        {
+            Points = newPoints,
+            Color = "#ef4444"
+        };
+
+        var service = CreateService();
+        var result = await service.UpdateZoneSiteShapeAsync(shapeId, dto, userId);
+
+        result.Should().NotBeNull();
+        result.Points.Should().Be(newPoints);
+        result.Color.Should().Be("#ef4444");
+    }
+
+    [Fact]
+    public async Task UpdateZoneSiteShapeAsync_NonExistentId_ThrowsException()
+    {
+        var shapeId = Guid.NewGuid();
+        _repositoryMock.Setup(r => r.GetZoneSiteShapeByIdAsync(shapeId))
+            .ReturnsAsync((ZoneSiteShape?)null);
+
+        var dto = new UpdateZoneSiteShapeDto { Points = "[{\"x\":0,\"y\":0}]" };
+        var service = CreateService();
+
+        var act = () => service.UpdateZoneSiteShapeAsync(shapeId, dto, Guid.NewGuid());
+
+        await act.Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("*not found*");
+    }
+
+    [Fact]
+    public async Task DeleteZoneSiteShapeAsync_ExistingId_Deletes()
+    {
+        var shapeId = Guid.NewGuid();
+        var existing = new ZoneSiteShape
+        {
+            Id = shapeId,
+            ZoneId = Guid.NewGuid(),
+            Points = "[{\"x\":0,\"y\":0}]"
+        };
+
+        _repositoryMock.Setup(r => r.GetZoneSiteShapeByIdAsync(shapeId))
+            .ReturnsAsync(existing);
+        _repositoryMock.Setup(r => r.DeleteZoneSiteShapeAsync(shapeId))
+            .Returns(Task.CompletedTask);
+
+        var service = CreateService();
+        await service.DeleteZoneSiteShapeAsync(shapeId, Guid.NewGuid());
+
+        _repositoryMock.Verify(r => r.DeleteZoneSiteShapeAsync(shapeId), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteZoneSiteShapeAsync_NonExistentId_ThrowsException()
+    {
+        var shapeId = Guid.NewGuid();
+        _repositoryMock.Setup(r => r.GetZoneSiteShapeByIdAsync(shapeId))
+            .ReturnsAsync((ZoneSiteShape?)null);
+
+        var service = CreateService();
+        var act = () => service.DeleteZoneSiteShapeAsync(shapeId, Guid.NewGuid());
+
+        await act.Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("*not found*");
+    }
+
+    [Fact]
+    public async Task GetSiteConfigAsync_ReturnsShapesWithPoints()
+    {
+        var site = new Site { Id = Guid.NewGuid(), Code = "SITE", SatelliteImageUrl = "https://img.com/map.png" };
+        var shapes = new List<ZoneSiteShape>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                ZoneId = Guid.NewGuid(),
+                Points = "[{\"x\":10,\"y\":10},{\"x\":110,\"y\":10},{\"x\":110,\"y\":110},{\"x\":10,\"y\":110}]",
+                Color = "#dbeafe"
+            }
+        };
+
+        _repositoryMock.Setup(r => r.GetSiteAsync()).ReturnsAsync(site);
+        _repositoryMock.Setup(r => r.GetZoneSiteShapesAsync()).ReturnsAsync(shapes);
+
+        var service = CreateService();
+        var result = await service.GetSiteConfigAsync();
+
+        result.Should().NotBeNull();
+        result.ZoneShapes.Should().HaveCount(1);
+        result.ZoneShapes[0].Points.Should().Be(shapes[0].Points);
+        result.ZoneShapes[0].Color.Should().Be("#dbeafe");
+    }
+
+    [Fact]
     public async Task DeleteRoomAsync_SendsFacilityRoomDeletedNotification()
     {
         var roomId = Guid.NewGuid();

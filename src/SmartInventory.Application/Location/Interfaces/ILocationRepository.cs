@@ -27,5 +27,13 @@ namespace SmartInventory.Application.Location.Interfaces
         Task<RoomGeometry> UpsertRoomGeometryAsync(RoomGeometry geometry);
         Task DeleteRoomAsync(Guid roomId);
         Task<List<Domain.Location.Entities.AssetLocationHistory>> GetLocationHistoryByRoomCodesAsync(List<string> roomCodes);
+
+        Task<Site?> GetSiteAsync();
+        Task UpdateSiteAsync(Site site);
+        Task<List<ZoneSiteShape>> GetZoneSiteShapesAsync();
+        Task<ZoneSiteShape?> GetZoneSiteShapeByIdAsync(Guid id);
+        Task<ZoneSiteShape> AddZoneSiteShapeAsync(ZoneSiteShape shape);
+        Task<ZoneSiteShape> UpdateZoneSiteShapeAsync(ZoneSiteShape shape);
+        Task DeleteZoneSiteShapeAsync(Guid id);
     }
 }

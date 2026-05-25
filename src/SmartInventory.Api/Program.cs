@@ -244,9 +244,14 @@ if (string.Equals(storageProvider, "AzureBlob", StringComparison.OrdinalIgnoreCa
         var connectionString = builder.Configuration.GetConnectionString("AzureStorage")
             ?? builder.Configuration["AzureStorage:ConnectionString"]
             ?? Environment.GetEnvironmentVariable("AZURE_STORAGE_CONNECTION_STRING");
-        return string.IsNullOrEmpty(connectionString)
-            ? new BlobServiceClient(new Uri("https://localhost"))
-            : new BlobServiceClient(connectionString);
+        if (string.IsNullOrEmpty(connectionString))
+        {
+            const string azuriteConnectionString = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;";
+            var logger = sp.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning("AzureStorage connection string not configured — falling back to Azurite emulator at {Endpoint}", "http://127.0.0.1:10000");
+            return new BlobServiceClient(azuriteConnectionString);
+        }
+        return new BlobServiceClient(connectionString);
     });
     builder.Services.AddSingleton<IFileStorageService>(sp =>
     {

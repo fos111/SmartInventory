@@ -46,6 +46,11 @@ public enum NotificationEventType
     FacilityRoomUpdated,
     FacilityRoomDeleted,
 
+    // Site Config CRUD (satellite view zone shapes)
+    FacilitySiteShapeCreated,
+    FacilitySiteShapeUpdated,
+    FacilitySiteShapeDeleted,
+
     // Auth & Account
     AuthLoginSuccess,
     AuthLoginError,

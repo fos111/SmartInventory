@@ -50,6 +50,11 @@ public static class PreferenceKeys
     public const string FacilityRoomUpdated = "pref:event:facility:room.updated";
     public const string FacilityRoomDeleted = "pref:event:facility:room.deleted";
 
+    // Facility Site Shapes
+    public const string FacilitySiteShapeCreated = "pref:event:facility:site_shape.created";
+    public const string FacilitySiteShapeUpdated = "pref:event:facility:site_shape.updated";
+    public const string FacilitySiteShapeDeleted = "pref:event:facility:site_shape.deleted";
+
     // Auth & Account
     public const string AuthLoginSuccess = "pref:event:auth:login_success";
     public const string AuthLoginError = "pref:event:auth:login_error";

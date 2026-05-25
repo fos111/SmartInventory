@@ -172,144 +172,6 @@ namespace SmartInventory.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Assets", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("11111111-1111-1111-1111-111111111111"),
-                            AssetTag = "AST-LI-001",
-                            Category = "Computer",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2244),
-                            CurrentRoomCode = "LI1",
-                            InstallDate = new DateTime(2025, 11, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2251),
-                            LastServiceDate = new DateTime(2026, 4, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2267),
-                            MaintenanceDueDate = new DateTime(2026, 7, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2268),
-                            Manufacturer = "Dell",
-                            Model = "XPS 15 9530",
-                            Name = "Dell Laptop XPS 15",
-                            SerialNumber = "DL-XPS-001",
-                            Status = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("22222222-2222-2222-2222-222222222222"),
-                            AssetTag = "AST-LI-002",
-                            Category = "Display",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2274),
-                            CurrentRoomCode = "LI2",
-                            InstallDate = new DateTime(2026, 1, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2277),
-                            Manufacturer = "HP",
-                            Model = "P24h",
-                            Name = "HP Monitor 24inch",
-                            SerialNumber = "HP-MON-002",
-                            Status = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333333"),
-                            AssetTag = "AST-LI-003",
-                            Category = "Printer/Scanner",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2283),
-                            CurrentRoomCode = "LI3",
-                            InstallDate = new DateTime(2025, 9, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2286),
-                            LastServiceDate = new DateTime(2026, 3, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2287),
-                            MaintenanceDueDate = new DateTime(2026, 6, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2287),
-                            Manufacturer = "Canon",
-                            Model = "MF644CDW",
-                            Name = "Canon Printer MF644",
-                            SerialNumber = "CN-PRT-003",
-                            Status = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("44444444-4444-4444-4444-444444444444"),
-                            AssetTag = "AST-LI-004",
-                            Category = "Projector",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2293),
-                            CurrentRoomCode = "LI4",
-                            InstallDate = new DateTime(2025, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2295),
-                            Manufacturer = "Epson",
-                            Model = "EB-2250U",
-                            Name = "Epson Projector",
-                            SerialNumber = "EP-PRJ-004",
-                            Status = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("55555555-5555-5555-5555-555555555555"),
-                            AssetTag = "AST-MEC-001",
-                            Category = "Computer",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2299),
-                            CurrentRoomCode = "MEC1",
-                            InstallDate = new DateTime(2026, 2, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2303),
-                            LastServiceDate = new DateTime(2026, 5, 7, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2304),
-                            Manufacturer = "Dell",
-                            Model = "Inspiron 15",
-                            Name = "Dell Laptop Inspiron",
-                            SerialNumber = "DL-INS-005",
-                            Status = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("66666666-6666-6666-6666-666666666666"),
-                            AssetTag = "AST-MEC-002",
-                            Category = "Display",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2320),
-                            CurrentRoomCode = "MEC2",
-                            InstallDate = new DateTime(2025, 12, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2322),
-                            Manufacturer = "Samsung",
-                            Model = "S27F350",
-                            Name = "Samsung Monitor 27inch",
-                            SerialNumber = "SM-MON-006",
-                            Status = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("77777777-7777-7777-7777-777777777777"),
-                            AssetTag = "AST-GEST-001",
-                            Category = "Printer/Scanner",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2327),
-                            CurrentRoomCode = "GEST1",
-                            InstallDate = new DateTime(2025, 7, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2329),
-                            LastServiceDate = new DateTime(2026, 4, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2330),
-                            MaintenanceDueDate = new DateTime(2026, 8, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2330),
-                            Manufacturer = "HP",
-                            Model = "LaserJet Pro M404n",
-                            Name = "HP Printer LaserJet",
-                            SerialNumber = "HP-PRT-007",
-                            Status = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("88888888-8888-8888-8888-888888888888"),
-                            AssetTag = "AST-0000003",
-                            Category = "Printer/Scanner",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2337),
-                            CurrentRoomCode = "LI1",
-                            Description = "Imprimante laser couleur - 30 ppm",
-                            DetectedRoomCode = "LI1",
-                            InstallDate = new DateTime(2026, 3, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2339),
-                            MaintenanceDueDate = new DateTime(2026, 9, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2339),
-                            Manufacturer = "HP",
-                            Model = "LaserJet Pro M404n",
-                            Name = "Imprimante HP LaserJet Pro",
-                            SerialNumber = "HP-LJ-003",
-                            Status = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("99999999-9999-9999-9999-999999999999"),
-                            AssetTag = "AST-INV-001",
-                            Category = "Display",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2344),
-                            CurrentRoomCode = "STOCK",
-                            Description = "Nouveau moniteur en stock, pas encore déployé",
-                            Manufacturer = "Dell",
-                            Model = "E2222H",
-                            Name = "Dell Monitor 22inch",
-                            SerialNumber = "DL-MON-INV-001",
-                            Status = 5
-                        });
                 });
 
             modelBuilder.Entity("SmartInventory.Domain.Asset.Entities.AssetHistory", b =>
@@ -527,40 +389,6 @@ namespace SmartInventory.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Buildings", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-000000000001"),
-                            Code = "CENTRAL",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(2),
-                            Name = "Bâtiment Central",
-                            ZoneId = new Guid("22222222-2222-2222-2222-222222222221")
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-000000000002"),
-                            Code = "CENTRAL",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(65),
-                            Name = "Bâtiment Central",
-                            ZoneId = new Guid("22222222-2222-2222-2222-222222222222")
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-000000000003"),
-                            Code = "CENTRAL",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(71),
-                            Name = "Bâtiment Central",
-                            ZoneId = new Guid("22222222-2222-2222-2222-222222222223")
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-000000000004"),
-                            Code = "ADMIN",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(75),
-                            Name = "Bâtiment Administratif",
-                            ZoneId = new Guid("22222222-2222-2222-2222-222222222224")
-                        });
                 });
 
             modelBuilder.Entity("SmartInventory.Domain.Location.Entities.Floor", b =>
@@ -590,40 +418,6 @@ namespace SmartInventory.Infrastructure.Migrations
                     b.HasIndex("BuildingId");
 
                     b.ToTable("Floors", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000001"),
-                            BuildingId = new Guid("33333333-3333-3333-3333-000000000001"),
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(110),
-                            Description = "Rez-de-chaussée",
-                            Level = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000002"),
-                            BuildingId = new Guid("33333333-3333-3333-3333-000000000002"),
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(119),
-                            Description = "Rez-de-chaussée",
-                            Level = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000003"),
-                            BuildingId = new Guid("33333333-3333-3333-3333-000000000003"),
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(124),
-                            Description = "Rez-de-chaussée",
-                            Level = 0
-                        },
-                        new
-                        {
-                            Id = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000004"),
-                            BuildingId = new Guid("33333333-3333-3333-3333-000000000004"),
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(128),
-                            Description = "Rez-de-chaussée",
-                            Level = 0
-                        });
                 });
 
             modelBuilder.Entity("SmartInventory.Domain.Location.Entities.Room", b =>
@@ -663,136 +457,6 @@ namespace SmartInventory.Infrastructure.Migrations
                     b.HasIndex("FloorId");
 
                     b.ToTable("Rooms", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000001"),
-                            Code = "LI1",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(141),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000001"),
-                            Name = "Laboratoire Informatique 1"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000002"),
-                            Code = "LI2",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(147),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000001"),
-                            Name = "Laboratoire Informatique 2"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000003"),
-                            Code = "LI3",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(154),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000001"),
-                            Name = "Laboratoire Informatique 3"
-                        },
-                        new
-                        {
-                            Id = new Guid("10000000-0000-0000-0000-000000000004"),
-                            Code = "LI4",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(160),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000001"),
-                            Name = "Laboratoire Informatique 4"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000001"),
-                            Code = "MEC1",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(165),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000002"),
-                            Name = "Laboratoire Mécanique 1"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000002"),
-                            Code = "MEC2",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(170),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000002"),
-                            Name = "Laboratoire Mécanique 2"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000003"),
-                            Code = "MEC3",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(175),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000002"),
-                            Name = "Laboratoire Mécanique 3"
-                        },
-                        new
-                        {
-                            Id = new Guid("20000000-0000-0000-0000-000000000004"),
-                            Code = "MEC4",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(180),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000002"),
-                            Name = "Laboratoire Mécanique 4"
-                        },
-                        new
-                        {
-                            Id = new Guid("30000000-0000-0000-0000-000000000001"),
-                            Code = "GEST1",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(185),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000003"),
-                            Name = "Laboratoire Gestion 1"
-                        },
-                        new
-                        {
-                            Id = new Guid("30000000-0000-0000-0000-000000000002"),
-                            Code = "GEST2",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(190),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000003"),
-                            Name = "Laboratoire Gestion 2"
-                        },
-                        new
-                        {
-                            Id = new Guid("30000000-0000-0000-0000-000000000003"),
-                            Code = "GEST3",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(195),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000003"),
-                            Name = "Laboratoire Gestion 3"
-                        },
-                        new
-                        {
-                            Id = new Guid("30000000-0000-0000-0000-000000000004"),
-                            Code = "GEST4",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(200),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000003"),
-                            Name = "Laboratoire Gestion 4"
-                        },
-                        new
-                        {
-                            Id = new Guid("40000000-0000-0000-0000-000000000001"),
-                            Code = "ADM1",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(205),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000004"),
-                            Name = "Bureau du Directeur"
-                        },
-                        new
-                        {
-                            Id = new Guid("40000000-0000-0000-0000-000000000002"),
-                            Code = "ADM2",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(210),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000004"),
-                            Name = "Salle de Réunion"
-                        },
-                        new
-                        {
-                            Id = new Guid("40000000-0000-0000-0000-000000000003"),
-                            Code = "ADM3",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(215),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000004"),
-                            Name = "Bureau Administration"
-                        },
-                        new
-                        {
-                            Id = new Guid("40000000-0000-0000-0000-000000000004"),
-                            Code = "STOCK",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 277, DateTimeKind.Utc).AddTicks(220),
-                            FloorId = new Guid("aaaaaaaa-aaaa-aaaa-aaaa-000000000004"),
-                            Name = "Salle de Stockage"
-                        });
                 });
 
             modelBuilder.Entity("SmartInventory.Domain.Location.Entities.RoomGeometry", b =>
@@ -871,6 +535,9 @@ namespace SmartInventory.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("SatelliteImageUrl")
+                        .HasColumnType("text");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -880,16 +547,6 @@ namespace SmartInventory.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Sites", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("11111111-1111-1111-1111-111111111111"),
-                            Code = "ISETMA",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 276, DateTimeKind.Utc).AddTicks(9814),
-                            Description = "Main campus",
-                            Name = "Institut Supérieur des Études Technologiques de Mahdia"
-                        });
                 });
 
             modelBuilder.Entity("SmartInventory.Domain.Location.Entities.Zone", b =>
@@ -929,40 +586,42 @@ namespace SmartInventory.Infrastructure.Migrations
                     b.HasIndex("SiteId");
 
                     b.ToTable("Zones", (string)null);
+                });
 
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("22222222-2222-2222-2222-222222222221"),
-                            Code = "INFORMATIQUE",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 276, DateTimeKind.Utc).AddTicks(9947),
-                            Name = "Département Informatique",
-                            SiteId = new Guid("11111111-1111-1111-1111-111111111111")
-                        },
-                        new
-                        {
-                            Id = new Guid("22222222-2222-2222-2222-222222222222"),
-                            Code = "MECANIQUE",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 276, DateTimeKind.Utc).AddTicks(9955),
-                            Name = "Département Mécanique",
-                            SiteId = new Guid("11111111-1111-1111-1111-111111111111")
-                        },
-                        new
-                        {
-                            Id = new Guid("22222222-2222-2222-2222-222222222223"),
-                            Code = "GESTION",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 276, DateTimeKind.Utc).AddTicks(9960),
-                            Name = "Département Gestion",
-                            SiteId = new Guid("11111111-1111-1111-1111-111111111111")
-                        },
-                        new
-                        {
-                            Id = new Guid("22222222-2222-2222-2222-222222222224"),
-                            Code = "ADM",
-                            CreatedAt = new DateTime(2026, 5, 21, 14, 25, 23, 276, DateTimeKind.Utc).AddTicks(9965),
-                            Name = "Département Administration",
-                            SiteId = new Guid("11111111-1111-1111-1111-111111111111")
-                        });
+            modelBuilder.Entity("SmartInventory.Domain.Location.Entities.ZoneSiteShape", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasMaxLength(9)
+                        .HasColumnType("character varying(9)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Label")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Points")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ZoneId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ZoneId");
+
+                    b.ToTable("ZoneSiteShapes", (string)null);
                 });
 
             modelBuilder.Entity("SmartInventory.Domain.Mobile.Auth.Entities.PasswordResetToken", b =>
@@ -1253,6 +912,17 @@ namespace SmartInventory.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Site");
+                });
+
+            modelBuilder.Entity("SmartInventory.Domain.Location.Entities.ZoneSiteShape", b =>
+                {
+                    b.HasOne("SmartInventory.Domain.Location.Entities.Zone", "Zone")
+                        .WithMany()
+                        .HasForeignKey("ZoneId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Zone");
                 });
 
             modelBuilder.Entity("SmartInventory.Domain.Mobile.Auth.Entities.RefreshToken", b =>

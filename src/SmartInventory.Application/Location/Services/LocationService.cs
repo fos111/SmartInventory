@@ -284,5 +284,122 @@ namespace SmartInventory.Application.Location.Services
 
             return results;
         }
+
+        public async Task<SiteConfigDto> GetSiteConfigAsync()
+        {
+            var site = await _repository.GetSiteAsync();
+            var shapes = await _repository.GetZoneSiteShapesAsync();
+
+            var imageUrl = site?.SatelliteImageUrl;
+            if (string.IsNullOrEmpty(imageUrl))
+                imageUrl = Environment.GetEnvironmentVariable("SATELLITE_IMAGE_URL");
+
+            return new SiteConfigDto
+            {
+                SatelliteImageUrl = imageUrl,
+                ZoneShapes = _mapper.Map<List<ZoneSiteShapeDto>>(shapes)
+            };
+        }
+
+        public async Task<SiteConfigDto> UpdateSiteConfigAsync(UpdateSiteConfigDto dto, Guid userId)
+        {
+            var site = await _repository.GetSiteAsync();
+            if (site == null)
+                throw new KeyNotFoundException("Site not found.");
+
+            site.SatelliteImageUrl = dto.SatelliteImageUrl;
+            await _repository.UpdateSiteAsync(site);
+
+            await _activityLogService.TrackFacilityChangeAsync(
+                "Updated", "SiteConfig", "site", "Satellite Image URL", null, userId);
+
+            var shapes = await _repository.GetZoneSiteShapesAsync();
+            return new SiteConfigDto
+            {
+                SatelliteImageUrl = dto.SatelliteImageUrl,
+                ZoneShapes = _mapper.Map<List<ZoneSiteShapeDto>>(shapes)
+            };
+        }
+
+        public async Task<ZoneSiteShapeDto> CreateZoneSiteShapeAsync(CreateZoneSiteShapeDto dto, Guid userId)
+        {
+            var zone = await _repository.GetZoneByIdAsync(dto.ZoneId);
+            if (zone == null)
+                throw new ArgumentException($"Zone with ID {dto.ZoneId} not found.");
+
+            var shape = new ZoneSiteShape
+            {
+                ZoneId = dto.ZoneId,
+                Points = dto.Points,
+                Color = dto.Color ?? "#3b82f6",
+                Label = dto.Label
+            };
+
+            var created = await _repository.AddZoneSiteShapeAsync(shape);
+
+            await _activityLogService.TrackFacilityChangeAsync(
+                "Created", "ZoneSiteShape", created.Id.ToString(), zone.Name, null, userId);
+
+            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            {
+                EventType = NotificationEventType.FacilitySiteShapeCreated,
+                Type = NotificationType.Info,
+                Title = "Zone Shape Created",
+                Message = $"Shape for {zone.Name} ({zone.Code}) was created",
+                TargetRole = UserRole.Supervisor
+            });
+
+            return _mapper.Map<ZoneSiteShapeDto>(created);
+        }
+
+        public async Task<ZoneSiteShapeDto> UpdateZoneSiteShapeAsync(Guid id, UpdateZoneSiteShapeDto dto, Guid userId)
+        {
+            var existing = await _repository.GetZoneSiteShapeByIdAsync(id);
+            if (existing == null)
+                throw new KeyNotFoundException($"Zone site shape with ID {id} not found.");
+
+            if (dto.Points != null)
+                existing.Points = dto.Points;
+            existing.Color = dto.Color ?? existing.Color;
+            existing.Label = dto.Label ?? existing.Label;
+            existing.UpdatedAt = DateTime.UtcNow;
+
+            var updated = await _repository.UpdateZoneSiteShapeAsync(existing);
+
+            await _activityLogService.TrackFacilityChangeAsync(
+                "Updated", "ZoneSiteShape", id.ToString(), $"Shape {id}", null, userId);
+
+            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            {
+                EventType = NotificationEventType.FacilitySiteShapeUpdated,
+                Type = NotificationType.Info,
+                Title = "Zone Shape Updated",
+                Message = $"Shape {id} was updated",
+                TargetRole = UserRole.Supervisor
+            });
+
+            return _mapper.Map<ZoneSiteShapeDto>(updated);
+        }
+
+        public async Task DeleteZoneSiteShapeAsync(Guid id, Guid userId)
+        {
+            var existing = await _repository.GetZoneSiteShapeByIdAsync(id);
+            if (existing == null)
+                throw new KeyNotFoundException($"Zone site shape with ID {id} not found.");
+
+            await _repository.DeleteZoneSiteShapeAsync(id);
+
+            await _activityLogService.TrackFacilityChangeAsync(
+                "Deleted", "ZoneSiteShape", id.ToString(), $"Shape {id}", null, userId);
+
+            await _notificationService.CreateNotificationAsync(new CreateNotificationDto
+            {
+                EventType = NotificationEventType.FacilitySiteShapeDeleted,
+                Type = NotificationType.Warning,
+                Title = "Zone Shape Deleted",
+                Message = $"Shape {id} was deleted",
+                TargetRole = UserRole.Supervisor
+            });
+        }
     }
 }

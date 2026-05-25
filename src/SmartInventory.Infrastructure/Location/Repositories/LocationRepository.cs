@@ -233,6 +233,90 @@ namespace SmartInventory.Infrastructure.Location.Repositories
                 .ToListAsync();
         }
 
+        public async Task<Site?> GetSiteAsync()
+        {
+            if (_cache != null)
+            {
+                try
+                {
+                    // Cache stores List<Site> (from GetFullHierarchyAsync) — take first
+                    var cached = await _cache.GetAsync<List<Site>>(CacheKeys.Hierarchy);
+                    if (cached is { Count: > 0 }) return cached[0];
+                }
+                catch
+                {
+                    // Stale/type-mismatched cache — fall through to DB
+                }
+            }
+
+            return await _context.Sites.AsNoTracking().FirstOrDefaultAsync();
+        }
+
+        public async Task UpdateSiteAsync(Site site)
+        {
+            var existing = await _context.Sites.FirstOrDefaultAsync(s => s.Id == site.Id);
+            if (existing != null)
+            {
+                existing.SatelliteImageUrl = site.SatelliteImageUrl;
+                existing.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                await InvalidateLocationCacheAsync();
+            }
+        }
+
+        public async Task<List<ZoneSiteShape>> GetZoneSiteShapesAsync()
+        {
+            return await _context.Set<ZoneSiteShape>()
+                .AsNoTracking()
+                .ToListAsync();
+        }
+
+        public async Task<ZoneSiteShape?> GetZoneSiteShapeByIdAsync(Guid id)
+        {
+            return await _context.Set<ZoneSiteShape>()
+                .FirstOrDefaultAsync(z => z.Id == id);
+        }
+
+        public async Task<ZoneSiteShape> AddZoneSiteShapeAsync(ZoneSiteShape shape)
+        {
+            shape.Id = Guid.NewGuid();
+            shape.CreatedAt = DateTime.UtcNow;
+            _context.Set<ZoneSiteShape>().Add(shape);
+            await _context.SaveChangesAsync();
+            await InvalidateLocationCacheAsync();
+            return shape;
+        }
+
+        public async Task<ZoneSiteShape> UpdateZoneSiteShapeAsync(ZoneSiteShape shape)
+        {
+            var existing = await _context.Set<ZoneSiteShape>()
+                .FirstOrDefaultAsync(z => z.Id == shape.Id);
+
+            if (existing != null)
+            {
+                existing.Points = shape.Points;
+                existing.Color = shape.Color;
+                existing.Label = shape.Label;
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+            await InvalidateLocationCacheAsync();
+            return existing ?? shape;
+        }
+
+        public async Task DeleteZoneSiteShapeAsync(Guid id)
+        {
+            var shape = await _context.Set<ZoneSiteShape>()
+                .FirstOrDefaultAsync(z => z.Id == id);
+            if (shape != null)
+            {
+                _context.Set<ZoneSiteShape>().Remove(shape);
+                await _context.SaveChangesAsync();
+                await InvalidateLocationCacheAsync();
+            }
+        }
+
         private async Task InvalidateLocationCacheAsync()
         {
             if (_cache != null)

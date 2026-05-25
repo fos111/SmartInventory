@@ -24,5 +24,6 @@ public class LocationMappingProfile : Profile
         CreateMap<Building, BuildingDto>().ReverseMap();
         CreateMap<Floor, FloorDto>().ReverseMap();
         CreateMap<RoomGeometry, RoomGeometryDto>();
+        CreateMap<ZoneSiteShape, ZoneSiteShapeDto>();
     }
 }

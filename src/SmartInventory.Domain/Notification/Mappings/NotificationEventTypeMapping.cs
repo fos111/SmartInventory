@@ -46,6 +46,9 @@ public static class NotificationEventTypeMapping
             NotificationEventType.SettingsProfileUpdated => PreferenceKeys.SettingsProfileUpdated,
             NotificationEventType.SettingsPasswordChanged => PreferenceKeys.SettingsPasswordChanged,
             NotificationEventType.SettingsPreferencesSaved => PreferenceKeys.SettingsPreferencesSaved,
+            NotificationEventType.FacilitySiteShapeCreated => PreferenceKeys.FacilitySiteShapeCreated,
+            NotificationEventType.FacilitySiteShapeUpdated => PreferenceKeys.FacilitySiteShapeUpdated,
+            NotificationEventType.FacilitySiteShapeDeleted => PreferenceKeys.FacilitySiteShapeDeleted,
             _ => throw new ArgumentOutOfRangeException(nameof(eventType), eventType, $"Unknown event type: {eventType}")
         };
 }

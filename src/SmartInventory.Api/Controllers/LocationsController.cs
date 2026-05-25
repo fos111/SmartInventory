@@ -159,5 +159,80 @@ namespace SmartInventory.API.Controllers
                 return NotFound(new { message = ex.Message });
             }
         }
+        [HttpGet("site-config")]
+        public async Task<ActionResult<SiteConfigDto>> GetSiteConfig()
+        {
+            var config = await _locationService.GetSiteConfigAsync();
+            return Ok(config);
+        }
+
+        [HttpPut("site-config")]
+        [Authorize(Roles = "Supervisor")]
+        public async Task<ActionResult<SiteConfigDto>> UpdateSiteConfig([FromBody] UpdateSiteConfigDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            try
+            {
+                var config = await _locationService.UpdateSiteConfigAsync(dto, GetUserId());
+                return Ok(config);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("site-config/shapes")]
+        [Authorize(Roles = "Supervisor")]
+        public async Task<ActionResult<ZoneSiteShapeDto>> CreateZoneSiteShape([FromBody] CreateZoneSiteShapeDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            try
+            {
+                var shape = await _locationService.CreateZoneSiteShapeAsync(dto, GetUserId());
+                return CreatedAtAction(nameof(GetSiteConfig), shape);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPut("site-config/shapes/{id:guid}")]
+        [Authorize(Roles = "Supervisor")]
+        public async Task<ActionResult<ZoneSiteShapeDto>> UpdateZoneSiteShape([FromRoute] Guid id, [FromBody] UpdateZoneSiteShapeDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            try
+            {
+                var shape = await _locationService.UpdateZoneSiteShapeAsync(id, dto, GetUserId());
+                return Ok(shape);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        [HttpDelete("site-config/shapes/{id:guid}")]
+        [Authorize(Roles = "Supervisor")]
+        public async Task<ActionResult> DeleteZoneSiteShape([FromRoute] Guid id)
+        {
+            try
+            {
+                await _locationService.DeleteZoneSiteShapeAsync(id, GetUserId());
+                return NoContent();
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
     }
 }
